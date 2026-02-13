@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { createBooking, checkAvailability } from "@/lib/supabase/queries";
+import { createBooking, checkAvailability, getBookingsForDate } from "@/lib/supabase/queries";
 import type { Barber, Service } from "@/lib/supabase/queries";
 import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import { useLanguage } from "@/contexts/language-context";
@@ -47,6 +47,8 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
   const [customerEmail, setCustomerEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState<string | null>(null);
+  const [bookedSlots, setBookedSlots] = useState<Array<{ start: Date; end: Date }>>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const { toast } = useToast();
   const { language } = useLanguage();
 
@@ -62,6 +64,45 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     return false;
   };
 
+  // Fetch booked slots when date or barber changes
+  useEffect(() => {
+    if (!selectedDate || !selectedBarber) {
+      setBookedSlots([]);
+      return;
+    }
+
+    const fetchBookedSlots = async () => {
+      setLoadingSlots(true);
+      try {
+        const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
+        setBookedSlots(bookings);
+      } catch (error) {
+        console.error("Error fetching booked slots:", error);
+        setBookedSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+
+    fetchBookedSlots();
+  }, [selectedDate, selectedBarber]);
+
+  const isSlotBooked = (slotTime: string): boolean => {
+    if (!selectedDate || !selectedService || bookedSlots.length === 0) return false;
+
+    const [hours, minutes] = slotTime.split(":").map(Number);
+    const slotStart = new Date(selectedDate);
+    slotStart.setHours(hours, minutes, 0, 0);
+    const slotEnd = new Date(slotStart.getTime() + selectedService.duration_minutes * 60000);
+
+    // Check if any booked slot overlaps with this time slot
+    return bookedSlots.some((bookedSlot) => {
+      // Check if the slot overlaps with the booked time range
+      // Overlap occurs if: slotStart < bookedSlot.end && slotEnd > bookedSlot.start
+      return slotStart < bookedSlot.end && slotEnd > bookedSlot.start;
+    });
+  };
+
   const getAvailableTimeSlots = () => {
     if (!selectedDate || !selectedService || !selectedBarber) return [];
 
@@ -72,8 +113,8 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
       const [hours] = slot.split(":").map(Number);
       if (hours < startHour) return false;
 
-      const slotDate = new Date(selectedDate);
-      slotDate.setHours(hours, 0, 0, 0);
+      // Filter out booked slots
+      if (isSlotBooked(slot)) return false;
 
       return true;
     });
@@ -98,13 +139,14 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
   const handleTimeSelect = async (time: string) => {
     if (!selectedDate || !selectedService || !selectedBarber) return;
 
+    // Double-check availability right before proceeding (race condition protection)
     setCheckingAvailability(time);
     const [hours, minutes] = time.split(":").map(Number);
     const bookingDateTime = new Date(selectedDate);
     bookingDateTime.setHours(hours, minutes, 0, 0);
 
     try {
-      // Check availability
+      // Final availability check
       const isAvailable = await checkAvailability(
         selectedBarber.id,
         bookingDateTime,
@@ -112,9 +154,12 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
       );
 
       if (!isAvailable) {
+        // Refresh booked slots to update the UI
+        const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
+        setBookedSlots(bookings);
         toast({
-          title: "Slot Unavailable",
-          description: "This time slot is already booked. Please select another time.",
+          title: "Slot No Longer Available",
+          description: "This time slot was just booked. Please select another time.",
           variant: "destructive",
         });
         setCheckingAvailability(null);
@@ -160,38 +205,89 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     const bookingDateTime = new Date(selectedDate);
     bookingDateTime.setHours(hours, minutes, 0, 0);
 
-    const booking = await createBooking({
-      service_id: selectedService.id,
-      barber_id: selectedBarber.id,
-      customer_name: customerName,
-      customer_phone: customerPhone,
-      customer_email: customerEmail || undefined,
-      booking_date: bookingDateTime.toISOString(),
-    });
+    try {
+      // Re-check availability right before booking to prevent race conditions
+      const isStillAvailable = await checkAvailability(
+        selectedBarber.id,
+        bookingDateTime,
+        selectedService.duration_minutes
+      );
 
-    setIsSubmitting(false);
+      if (!isStillAvailable) {
+        // Refresh booked slots to update the UI
+        if (selectedBarber && selectedDate) {
+          const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
+          setBookedSlots(bookings);
+        }
+        toast({
+          title: "Slot No Longer Available",
+          description: "This time slot was just booked by someone else. Please select another time.",
+          variant: "destructive",
+        });
+        setSelectedTime("");
+        setStep("datetime");
+        setIsSubmitting(false);
+        return;
+      }
 
-    if (booking) {
-      toast({
-        title: "Booking Confirmed!",
-        description: `Your appointment is confirmed for ${formatDate(bookingDateTime)} at ${formatTime(bookingDateTime)}.`,
+      const booking = await createBooking({
+        service_id: selectedService.id,
+        barber_id: selectedBarber.id,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        customer_email: customerEmail || undefined,
+        booking_date: bookingDateTime.toISOString(),
       });
+
+      if (booking) {
+        // Refresh booked slots to update the UI
+        if (selectedBarber && selectedDate) {
+          const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
+          setBookedSlots(bookings);
+        }
+        
+        toast({
+          title: "Booking Confirmed!",
+          description: `Your appointment is confirmed for ${formatDate(bookingDateTime)} at ${formatTime(bookingDateTime)}.`,
+        });
+        
+        // Reset form
+        setStep("service");
+        setSelectedService(null);
+        setSelectedBarber(null);
+        setSelectedDate(undefined);
+        setSelectedTime("");
+        setCustomerName("");
+        setCustomerPhone("");
+        setCustomerEmail("");
+      } else {
+        toast({
+          title: "Booking Failed",
+          description: "There was an error creating your booking. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error in handleConfirmBooking:", error);
       
-      // Reset form
-      setStep("service");
-      setSelectedService(null);
-      setSelectedBarber(null);
-      setSelectedDate(undefined);
-      setSelectedTime("");
-      setCustomerName("");
-      setCustomerPhone("");
-      setCustomerEmail("");
-    } else {
-      toast({
-        title: "Booking Failed",
-        description: "There was an error creating your booking. Please try again.",
-        variant: "destructive",
-      });
+      // Handle duplicate booking error specifically
+      if (error instanceof Error && error.message === 'DUPLICATE_BOOKING') {
+        toast({
+          title: "Time Slot Already Booked",
+          description: "This time slot was just booked by someone else. Please select another time.",
+          variant: "destructive",
+        });
+        setSelectedTime("");
+        setStep("datetime");
+      } else {
+        toast({
+          title: "Booking Failed",
+          description: error instanceof Error ? error.message : "There was an error creating your booking. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -368,28 +464,41 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                 {selectedDate && (
                   <div>
                     <Label className="mb-2 block">Time</Label>
-                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                      {getAvailableTimeSlots().map((slot) => (
-                        <button
-                          key={slot}
-                          onClick={() => handleTimeSelect(slot)}
-                          disabled={checkingAvailability !== null}
-                          className={`p-3 rounded-lg border-2 text-sm transition-all ${
-                            selectedTime === slot
-                              ? "border-gold bg-gold text-navy font-semibold"
-                              : checkingAvailability === slot
-                              ? "border-gold bg-gold/20"
-                              : "border-gray-200 hover:border-gold"
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                          {checkingAvailability === slot ? (
-                            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                          ) : (
-                            slot
-                          )}
-                        </button>
-                      ))}
-                    </div>
+                    {loadingSlots ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-gold" />
+                        <span className="ml-2 text-gray-600">Loading available times...</span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                        {getAvailableTimeSlots().length === 0 ? (
+                          <div className="col-span-full text-center py-4 text-gray-500">
+                            No available time slots for this date. Please select another date.
+                          </div>
+                        ) : (
+                          getAvailableTimeSlots().map((slot) => (
+                            <button
+                              key={slot}
+                              onClick={() => handleTimeSelect(slot)}
+                              disabled={checkingAvailability !== null}
+                              className={`p-3 rounded-lg border-2 text-sm transition-all ${
+                                selectedTime === slot
+                                  ? "border-gold bg-gold text-navy font-semibold"
+                                  : checkingAvailability === slot
+                                  ? "border-gold bg-gold/20"
+                                  : "border-gray-200 hover:border-gold"
+                              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            >
+                              {checkingAvailability === slot ? (
+                                <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                              ) : (
+                                slot
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
