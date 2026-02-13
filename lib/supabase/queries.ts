@@ -102,6 +102,10 @@ export async function createBooking(booking: {
   booking_date: string;
 }): Promise<Booking | null> {
   const supabase = createClient();
+  
+  // Log the booking data being sent for debugging
+  console.log("Creating booking with data:", JSON.stringify(booking, null, 2));
+  
   const { data, error } = await supabase
     .from("bookings")
     .insert(booking)
@@ -109,7 +113,22 @@ export async function createBooking(booking: {
     .single();
 
   if (error) {
-    console.error("Error creating booking:", error);
+    // Check for UNIQUE constraint violation (PostgreSQL error code 23505)
+    const errorCode = (error as any)?.code;
+    const errorMessage = (error as any)?.message || '';
+    
+    // If it's a duplicate booking error, throw a specific error that can be caught
+    if (errorCode === '23505' || errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
+      throw new Error('DUPLICATE_BOOKING');
+    }
+    
+    // Log other errors for debugging
+    console.error("Error creating booking:", {
+      code: errorCode,
+      message: errorMessage,
+      fullError: error
+    });
+    
     return null;
   }
 
@@ -172,4 +191,36 @@ export async function checkAvailability(
   }
 
   return (data || []).length === 0;
+}
+
+export async function getBookingsForDate(
+  barberId: string,
+  date: Date
+): Promise<Array<{ start: Date; end: Date }>> {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+  
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("booking_date, service:services(duration_minutes)")
+    .eq("barber_id", barberId)
+    .eq("status", "confirmed")
+    .gte("booking_date", startOfDay.toISOString())
+    .lte("booking_date", endOfDay.toISOString());
+
+  if (error) {
+    console.error("Error fetching bookings for date:", error);
+    return [];
+  }
+
+  // Return array of booking time ranges (start and end)
+  return (data || []).map((booking: any) => {
+    const start = new Date(booking.booking_date);
+    const duration = booking.service?.duration_minutes || 30;
+    const end = new Date(start.getTime() + duration * 60000);
+    return { start, end };
+  });
 }
