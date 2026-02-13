@@ -46,6 +46,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkingAvailability, setCheckingAvailability] = useState<string | null>(null);
   const { toast } = useToast();
   const { language } = useLanguage();
 
@@ -97,27 +98,42 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
   const handleTimeSelect = async (time: string) => {
     if (!selectedDate || !selectedService || !selectedBarber) return;
 
+    setCheckingAvailability(time);
     const [hours, minutes] = time.split(":").map(Number);
     const bookingDateTime = new Date(selectedDate);
     bookingDateTime.setHours(hours, minutes, 0, 0);
 
-    // Check availability
-    const isAvailable = await checkAvailability(
-      selectedBarber.id,
-      bookingDateTime,
-      selectedService.duration_minutes
-    );
+    try {
+      // Check availability
+      const isAvailable = await checkAvailability(
+        selectedBarber.id,
+        bookingDateTime,
+        selectedService.duration_minutes
+      );
 
-    if (!isAvailable) {
+      if (!isAvailable) {
+        toast({
+          title: "Slot Unavailable",
+          description: "This time slot is already booked. Please select another time.",
+          variant: "destructive",
+        });
+        setCheckingAvailability(null);
+        return;
+      }
+
+      setSelectedTime(time);
+      // Automatically advance to details step after selecting a time
+      setStep("details");
+    } catch (error) {
+      console.error("Error checking availability:", error);
       toast({
-        title: "Slot Unavailable",
-        description: "This time slot is already booked. Please select another time.",
+        title: "Error",
+        description: "Failed to check availability. Please try again.",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setCheckingAvailability(null);
     }
-
-    setSelectedTime(time);
   };
 
   const handleDetailsSubmit = () => {
@@ -357,13 +373,20 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                         <button
                           key={slot}
                           onClick={() => handleTimeSelect(slot)}
+                          disabled={checkingAvailability !== null}
                           className={`p-3 rounded-lg border-2 text-sm transition-all ${
                             selectedTime === slot
                               ? "border-gold bg-gold text-navy font-semibold"
+                              : checkingAvailability === slot
+                              ? "border-gold bg-gold/20"
                               : "border-gray-200 hover:border-gold"
-                          }`}
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
-                          {slot}
+                          {checkingAvailability === slot ? (
+                            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                          ) : (
+                            slot
+                          )}
                         </button>
                       ))}
                     </div>
