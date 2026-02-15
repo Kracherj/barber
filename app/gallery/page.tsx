@@ -32,7 +32,7 @@ const galleryImages = [
   },
   {
     id: 5,
-    src: "https://images.unsplash.com/photo-1622296249501-c2f66cbd3777?w=1200&h=800&fit=crop",
+    src: "https://images.unsplash.com/photo-1562322140-8baeececf3df?w=1200&h=800&fit=crop",
     alt: "Beard trim",
     category: "Beard",
   },
@@ -44,13 +44,13 @@ const galleryImages = [
   },
   {
     id: 7,
-    src: "https://images.unsplash.com/photo-1582095133170-bfd32e43b5e3?w=1200&h=800&fit=crop",
+    src: "https://images.unsplash.com/photo-1562322140-8baeececf3df?w=1200&h=800&fit=crop",
     alt: "Premium service",
     category: "Service",
   },
   {
     id: 8,
-    src: "https://images.unsplash.com/photo-1622296249501-c2f66cbd3777?w=1200&h=800&fit=crop",
+    src: "https://images.unsplash.com/photo-1562322140-8baeececf3df?w=1200&h=800&fit=crop",
     alt: "Styling",
     category: "Styling",
   },
@@ -72,8 +72,8 @@ export default function GalleryPage() {
           </h1>
           <div className="w-24 h-[1px] bg-gold mb-6" />
           <p className="text-lg text-white/60 max-w-2xl font-body tracking-wide">
-            {language === "ar"
-              ? "اكتشف أعمالنا الفنية في الحلاقة والعناية"
+            {language === "fr"
+              ? "Découvrez notre art du toilettage et du style"
               : "Discover our artistry in grooming and styling"}
           </p>
         </motion.div>

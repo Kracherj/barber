@@ -34,9 +34,14 @@ CREATE TABLE IF NOT EXISTS bookings (
   booking_date TIMESTAMP WITH TIME ZONE NOT NULL,
   status TEXT DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled', 'completed')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(barber_id, booking_date)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Partial unique index: Only one confirmed booking per barber/time slot
+-- This allows cancelled bookings to not block new bookings
+CREATE UNIQUE INDEX IF NOT EXISTS bookings_barber_date_unique_confirmed 
+ON bookings(barber_id, booking_date) 
+WHERE status = 'confirmed';
 
 -- Admin users table (simple password-based auth for admin dashboard)
 CREATE TABLE IF NOT EXISTS admin_users (
@@ -45,6 +50,15 @@ CREATE TABLE IF NOT EXISTS admin_users (
   password_hash TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Disabled dates: when a date is here, no client can book (salon closed / day off)
+CREATE TABLE IF NOT EXISTS disabled_dates (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  date DATE NOT NULL UNIQUE,
+  reason TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_disabled_dates_date ON disabled_dates(date);
 
 -- Insert default barbers
 INSERT INTO barbers (id, name, name_ar) VALUES
@@ -98,6 +112,7 @@ ALTER TABLE barbers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE services ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE disabled_dates ENABLE ROW LEVEL SECURITY;
 
 -- Allow public read access to barbers and services
 CREATE POLICY "Public read access to barbers" ON barbers FOR SELECT USING (true);
@@ -112,3 +127,8 @@ CREATE POLICY "Public update own bookings" ON bookings FOR UPDATE USING (true);
 CREATE POLICY "Admin full access" ON bookings FOR ALL USING (true);
 CREATE POLICY "Admin full access services" ON services FOR ALL USING (true);
 CREATE POLICY "Admin full access barbers" ON barbers FOR ALL USING (true);
+
+-- disabled_dates: public read (booking page), insert/delete (admin)
+CREATE POLICY "Public read disabled_dates" ON disabled_dates FOR SELECT USING (true);
+CREATE POLICY "Public insert disabled_dates" ON disabled_dates FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public delete disabled_dates" ON disabled_dates FOR DELETE USING (true);

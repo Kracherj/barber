@@ -46,8 +46,8 @@ export default function BookingsPage() {
   const handleCancel = async (bookingId: string) => {
     if (
       !confirm(
-        language === "ar"
-          ? "هل أنت متأكد من إلغاء هذا الحجز؟"
+        language === "fr"
+          ? "Êtes-vous sûr de vouloir annuler cette réservation ?"
           : "Are you sure you want to cancel this booking?"
       )
     ) {
@@ -59,8 +59,8 @@ export default function BookingsPage() {
       toast({
         title: "Booking Cancelled",
         description:
-          language === "ar"
-            ? "تم إلغاء الحجز بنجاح"
+          language === "fr"
+            ? "Votre réservation a été annulée avec succès."
             : "Your booking has been cancelled successfully.",
       });
       handleSearch(); // Refresh bookings
@@ -68,8 +68,8 @@ export default function BookingsPage() {
       toast({
         title: "Cancellation Failed",
         description:
-          language === "ar"
-            ? "حدث خطأ أثناء إلغاء الحجز"
+          language === "fr"
+            ? "Une erreur s'est produite lors de l'annulation de votre réservation."
             : "There was an error cancelling your booking.",
         variant: "destructive",
       });
@@ -81,14 +81,14 @@ export default function BookingsPage() {
       <div className="container mx-auto px-4">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl md:text-5xl font-heading font-bold text-navy text-center mb-8">
-            {language === "ar" ? "حجوزاتي" : "My Bookings"}
+            {language === "fr" ? "Mes Réservations" : "My Bookings"}
           </h1>
 
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>
-                {language === "ar"
-                  ? "ابحث عن حجوزاتك"
+                {language === "fr"
+                  ? "Rechercher vos réservations"
                   : "Search for Your Bookings"}
               </CardTitle>
             </CardHeader>
@@ -96,7 +96,7 @@ export default function BookingsPage() {
               <div className="flex gap-4">
                 <div className="flex-1">
                   <Label htmlFor="phone">
-                    {language === "ar" ? "رقم الهاتف" : "Phone Number"}
+                    {language === "fr" ? "Numéro de téléphone" : "Phone Number"}
                   </Label>
                   <Input
                     id="phone"
@@ -109,11 +109,11 @@ export default function BookingsPage() {
                 <div className="flex items-end">
                   <Button onClick={handleSearch} disabled={loading}>
                     {loading
-                      ? language === "ar"
-                        ? "جاري البحث..."
+                      ? language === "fr"
+                        ? "Recherche en cours..."
                         : "Searching..."
-                      : language === "ar"
-                      ? "بحث"
+                      : language === "fr"
+                      ? "Rechercher"
                       : "Search"}
                   </Button>
                 </div>
@@ -131,7 +131,7 @@ export default function BookingsPage() {
                         <div className="flex items-center gap-2">
                           <Scissors className="h-5 w-5 text-gold" />
                           <h3 className="text-xl font-semibold text-navy">
-                            {language === "ar"
+                            {language === "fr"
                               ? booking.service?.name_ar
                               : booking.service?.name_en}
                           </h3>
@@ -149,8 +149,8 @@ export default function BookingsPage() {
                           </span>
                         </div>
                         <div className="text-navy/70">
-                          {language === "ar"
-                            ? `الحلاق: ${booking.barber?.name_ar}`
+                          {language === "fr"
+                            ? `Barbier: ${booking.barber?.name_ar}`
                             : `Barber: ${booking.barber?.name}`}
                         </div>
                         <div className="text-lg font-semibold text-gold">
@@ -164,7 +164,7 @@ export default function BookingsPage() {
                         className="md:ml-auto"
                       >
                         <X className="h-4 w-4 mr-2" />
-                        {language === "ar" ? "إلغاء" : "Cancel"}
+                        {language === "fr" ? "Annuler" : "Cancel"}
                       </Button>
                     </div>
                   </CardContent>

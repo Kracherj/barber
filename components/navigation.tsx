@@ -25,6 +25,7 @@ export function Navigation() {
     { href: "/", label: t("nav.home") },
     { href: "/services", label: t("nav.services") },
     { href: "/gallery", label: t("nav.gallery") },
+    { href: "/products", label: t("nav.products") },
     { href: "/about", label: t("nav.about") },
     { href: "/contact", label: t("nav.contact") },
   ];
@@ -40,9 +41,18 @@ export function Navigation() {
       <div className="container mx-auto px-6 md:px-12 lg:px-16">
         <div className="flex h-20 items-center justify-between">
           <Link href="/" className="flex items-center space-x-3 group">
-            <Scissors className="h-6 w-6 text-gold transition-transform group-hover:rotate-12" />
+            <div className="relative h-10 w-10 flex items-center justify-center shrink-0">
+              <Scissors className="h-6 w-6 text-gold transition-transform group-hover:rotate-12" />
+              <img
+                src="/images/logo.png"
+                alt=""
+                className="absolute inset-0 h-10 w-10 object-contain opacity-0 transition-opacity"
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
+                onLoad={(e) => { (e.target as HTMLImageElement).style.opacity = "1"; }}
+              />
+            </div>
             <span className="text-xl font-heading font-bold text-white tracking-tight">
-              El Haj'aime
+              Joseph Coiff
             </span>
           </Link>
 
@@ -78,19 +88,19 @@ export function Navigation() {
               </Button>
             </Link>
             <button
-              onClick={() => setLanguage(language === "en" ? "ar" : "en")}
+              onClick={() => setLanguage(language === "en" ? "fr" : "en")}
               className="flex items-center space-x-1 px-3 py-2 text-sm font-medium text-white/80 hover:text-gold transition-colors"
               aria-label="Toggle language"
             >
               <Globe className="h-4 w-4" />
-              <span className="tracking-wide">{language === "en" ? "AR" : "EN"}</span>
+              <span className="tracking-wide">{language === "en" ? "FR" : "EN"}</span>
             </button>
           </div>
 
           {/* Mobile Menu Button */}
           <div className="flex md:hidden items-center space-x-3">
             <button
-              onClick={() => setLanguage(language === "en" ? "ar" : "en")}
+              onClick={() => setLanguage(language === "en" ? "fr" : "en")}
               className="p-2"
               aria-label="Toggle language"
             >

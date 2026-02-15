@@ -9,33 +9,25 @@ const testimonials = [
   {
     id: 1,
     name: "Mohamed Ben Ali",
-    nameAr: "محمد بن علي",
-    text: "Best barbershop in Tunis! Ahmed gave me the perfect fade. Highly recommend!",
-    textAr: "أفضل صالون حلاقة في تونس! أحمد أعطاني قص مثالي. أنصح به بشدة!",
+    text: "Meilleur salon de coiffure à Tunis ! Une coupe parfaite. Je recommande vivement !",
     rating: 5,
   },
   {
     id: 2,
     name: "Youssef Trabelsi",
-    nameAr: "يوسف الطرابلسي",
-    text: "Professional service and great atmosphere. Karim is a true artist!",
-    textAr: "خدمة احترافية وجو رائع. كريم فنان حقيقي!",
+    text: "Service professionnel et ambiance géniale. Une vraie équipe d'artistes !",
     rating: 5,
   },
   {
     id: 3,
     name: "Sami Khelifi",
-    nameAr: "سامي الخليفي",
-    text: "Walid's attention to detail is unmatched. Worth every dinar!",
-    textAr: "انتباه وليد للتفاصيل لا مثيل له. يستحق كل دينار!",
+    text: "Une attention aux détails incomparable. Ça vaut chaque dinar !",
     rating: 5,
   },
   {
     id: 4,
     name: "Hassan Amara",
-    nameAr: "حسان عمارة",
-    text: "Traditional Tunisian craftsmanship at its finest. El Haj'Aime is exceptional!",
-    textAr: "الحرفية التونسية التقليدية في أفضل حالاتها. الحاج عايم استثنائي!",
+    text: "L'artisanat tunisien traditionnel à son meilleur. Joseph Coiff est exceptionnel !",
     rating: 5,
   },
 ];
@@ -79,10 +71,10 @@ export function Testimonials() {
                     ))}
                   </div>
                   <p className="text-white/80 mb-6 italic font-body leading-relaxed">
-                    "{language === "ar" ? testimonial.textAr : testimonial.text}"
+                    &ldquo;{testimonial.text}&rdquo;
                   </p>
                   <p className="text-gold font-semibold font-body tracking-wide">
-                    {language === "ar" ? testimonial.nameAr : testimonial.name}
+                    {testimonial.name}
                   </p>
                 </CardContent>
               </Card>

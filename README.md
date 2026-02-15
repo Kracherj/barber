@@ -6,7 +6,7 @@ A fully functional, professional website for "El Haj'Aime", a premium barbershop
 
 - ✅ **Online Booking System** - Real-time calendar with 3 barbers (Ahmed, Karim, Walid)
 - ✅ **Service Management** - 4 services with pricing in TND
-- ✅ **Bilingual Support** - English/Arabic with RTL toggle
+- ✅ **Bilingual Support** - English/French
 - ✅ **Admin Dashboard** - Manage bookings, barbers, and services
 - ✅ **Responsive Design** - Mobile-first approach
 - ✅ **PWA Support** - Offline booking queue

@@ -27,7 +27,7 @@ const galleryImages = [
   },
   {
     id: 5,
-    src: "https://images.unsplash.com/photo-1622296249501-c2f66cbd3777?w=800&h=600&fit=crop",
+    src: "https://images.unsplash.com/photo-1562322140-8baeececf3df?w=800&h=600&fit=crop",
     alt: "Beard trim",
   },
   {

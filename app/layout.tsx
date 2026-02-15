@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -10,35 +10,38 @@ import Script from "next/script";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
-  title: "El Haj'Aime | Premium Barbershop in Tunis",
+  title: "Joseph Coiff | Coiffure Premium à Tunis",
   description:
-    "Precision Cuts, Tunisian Pride. Premium barbershop in central Tunis offering classic cuts, premium services, and traditional craftsmanship.",
+    "Coupes de précision, Fierté tunisienne. Salon de coiffure premium au cœur de Tunis. Coupes classiques, services premium et produits de soins.",
   keywords: [
+    "Joseph Coiff",
+    "coiffure Tunis",
+    "coiffeur Tunisie",
     "barbershop Tunis",
-    "haircut Tunis",
-    "barber Tunisia",
-    "El Haj'Aime",
-    "premium barbershop",
-    "Tunis barber",
+    "coiffeur premium",
   ],
-  authors: [{ name: "El Haj'Aime" }],
+  authors: [{ name: "Joseph Coiff" }],
   openGraph: {
-    title: "El Haj'Aime | Premium Barbershop in Tunis",
-    description: "Precision Cuts, Tunisian Pride",
+    title: "Joseph Coiff | Coiffure Premium à Tunis",
+    description: "Coupes de précision, Fierté tunisienne",
     type: "website",
-    locale: "en_US",
-    alternateLocale: "ar_TN",
+    locale: "fr_TN",
+    alternateLocale: "en_US",
   },
   robots: {
     index: true,
     follow: true,
   },
-  viewport: "width=device-width, initial-scale=1",
-  manifest: "/manifest.json",
+  manifest: "/manifest",
   icons: {
-    icon: "/icon-192.png",
-    apple: "/icon-192.png",
+    icon: "/images/logo.png",
+    apple: "/images/logo.png",
   },
 };
 
@@ -48,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         {/* Google Analytics */}
         {process.env.NEXT_PUBLIC_GA_ID && (
@@ -58,12 +61,7 @@ export default function RootLayout({
               strategy="afterInteractive"
             />
             <Script id="google-analytics" strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}');
-              `}
+              {"window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag(\"js\", new Date()); gtag(\"config\", \"" + (process.env.NEXT_PUBLIC_GA_ID || "") + "\");"}
             </Script>
           </>
         )}
@@ -71,16 +69,7 @@ export default function RootLayout({
         {/* Hotjar */}
         {process.env.NEXT_PUBLIC_HOTJAR_ID && (
           <Script id="hotjar" strategy="afterInteractive">
-            {`
-              (function(h,o,t,j,a,r){
-                h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
-                h._hjSettings={hjid:${process.env.NEXT_PUBLIC_HOTJAR_ID},hjsv:6};
-                a=o.getElementsByTagName('head')[0];
-                r=o.createElement('script');r.async=1;
-                r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
-                a.appendChild(r);
-              })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');
-            `}
+            {"(function(h,o,t,j,a,r){ h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments);}; h._hjSettings={hjid:\"" + (process.env.NEXT_PUBLIC_HOTJAR_ID || "") + "\",hjsv:6}; a=o.getElementsByTagName(\"head\")[0]; r=o.createElement(\"script\");r.async=1; r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv; a.appendChild(r); })(window,document,\"https://static.hotjar.com/c/hotjar-\",\".js?sv=\");"}
           </Script>
         )}
 
@@ -91,12 +80,12 @@ export default function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "HairSalon",
-              name: "El Haj'Aime",
-              alternateName: "الحاج عايم",
-              description: "Premium barbershop in Tunis, Tunisia",
+              name: "Joseph Coiff",
+              alternateName: "Joseph Coiff",
+              description: "Salon de coiffure premium à Tunis, Tunisie",
+              url: "https://maps.app.goo.gl/9rrvfUm1G1WfzBQ46",
               address: {
                 "@type": "PostalAddress",
-                streetAddress: "Avenue Habib Bourguiba",
                 addressLocality: "Tunis",
                 addressCountry: "TN",
               },

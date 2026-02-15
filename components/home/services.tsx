@@ -13,9 +13,9 @@ const services = [
     id: "classic-cut",
     icon: Scissors,
     nameEn: "Classic Cut",
-    nameAr: "قص كلاسيكي",
+    nameFr: "Coupe Classique",
     descriptionEn: "Professional haircut with styling",
-    descriptionAr: "قص احترافي مع تصفيف",
+    descriptionFr: "Coupe professionnelle avec coiffage",
     duration: 30,
     price: 25,
   },
@@ -23,9 +23,9 @@ const services = [
     id: "premium-cut",
     icon: Crown,
     nameEn: "Premium Cut + Shave",
-    nameAr: "قص مميز + حلاقة",
+    nameFr: "Coupe Premium + Rasage",
     descriptionEn: "Premium haircut with hot towel shave",
-    descriptionAr: "قص مميز مع حلاقة بمنشفة ساخنة",
+    descriptionFr: "Coupe premium avec rasage à la serviette chaude",
     duration: 45,
     price: 40,
   },
@@ -33,9 +33,9 @@ const services = [
     id: "beard-trim",
     icon: Zap,
     nameEn: "Beard Trim",
-    nameAr: "تهذيب اللحية",
+    nameFr: "Taille de barbe",
     descriptionEn: "Precise beard trimming and shaping",
-    descriptionAr: "تهذيب وتشكيل اللحية بدقة",
+    descriptionFr: "Taille et mise en forme précise de la barbe",
     duration: 20,
     price: 15,
   },
@@ -43,9 +43,9 @@ const services = [
     id: "full-service",
     icon: Sparkles,
     nameEn: "Full Service",
-    nameAr: "خدمة كاملة",
+    nameFr: "Service Complet",
     descriptionEn: "Complete grooming experience: cut, shave, and styling",
-    descriptionAr: "تجربة عناية كاملة: قص، حلاقة، وتصفيف",
+    descriptionFr: "Expérience complète : coupe, rasage et coiffage",
     duration: 75,
     price: 60,
   },
@@ -90,11 +90,11 @@ export function Services() {
                       <Icon className="h-7 w-7 text-gold" />
                     </div>
                     <CardTitle className="text-2xl font-heading text-white mb-3 tracking-tight">
-                      {language === "ar" ? service.nameAr : service.nameEn}
+                      {language === "fr" ? service.nameFr : service.nameEn}
                     </CardTitle>
                     <CardDescription className="text-white/60 font-body">
-                      {language === "ar"
-                        ? service.descriptionAr
+                      {language === "fr"
+                        ? service.descriptionFr
                         : service.descriptionEn}
                     </CardDescription>
                   </CardHeader>
@@ -112,7 +112,7 @@ export function Services() {
                         variant="outline"
                         className="w-full border-white/10 hover:border-gold hover:text-gold hover:bg-gold/5 rounded-sm font-semibold tracking-wide transition-all duration-300"
                       >
-                        {language === "ar" ? "احجز الآن" : "Book Now"}
+                        {language === "fr" ? "Réserver maintenant" : "Book Now"}
                       </Button>
                     </Link>
                   </CardContent>

@@ -12,6 +12,20 @@ import { Scissors, Crown, Zap, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
 
+// French labels for services (DB has name_ar in Arabic; we show FR)
+const SERVICE_NAME_FR: Record<string, string> = {
+  "Classic Cut": "Coupe classique",
+  "Premium Cut + Shave": "Coupe premium + rasage",
+  "Beard Trim": "Taille de barbe",
+  "Full Service": "Service complet",
+};
+const SERVICE_DESC_FR: Record<string, string> = {
+  "Classic Cut": "Coupe professionnelle avec coiffage",
+  "Premium Cut + Shave": "Coupe premium avec rasage à la serviette chaude",
+  "Beard Trim": "Taille et mise en forme précise de la barbe",
+  "Full Service": "Expérience complète : coupe, rasage et coiffage",
+};
+
 const serviceIcons = {
   "classic-cut": Scissors,
   "premium-cut": Crown,
@@ -50,12 +64,12 @@ export default function ServicesPage() {
           className="mb-20"
         >
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-heading font-bold text-white mb-6 tracking-tight">
-            {language === "ar" ? "خدماتنا" : "Our Services"}
+            {language === "fr" ? "Nos Services" : "Our Services"}
           </h1>
           <div className="w-24 h-[1px] bg-gold mb-6" />
           <p className="text-lg text-white/60 max-w-2xl font-body tracking-wide">
-            {language === "ar"
-              ? "عناية احترافية مصممة خصيصاً لك"
+            {language === "fr"
+              ? "Toilettage professionnel adapté à vos besoins"
               : "Professional grooming tailored to you"}
           </p>
         </motion.div>
@@ -79,18 +93,20 @@ export default function ServicesPage() {
                       <Icon className="h-8 w-8 text-gold" />
                     </div>
                     <CardTitle className="text-2xl font-heading text-white mb-3 tracking-tight">
-                      {language === "ar" ? service.name_ar : service.name_en}
+                      {language === "fr"
+                        ? (SERVICE_NAME_FR[service.name_en] ?? service.name_en)
+                        : service.name_en}
                     </CardTitle>
                     <CardDescription className="text-white/60 font-body">
-                      {language === "ar"
-                        ? service.description_ar
+                      {language === "fr"
+                        ? (SERVICE_DESC_FR[service.name_en] ?? service.description_en)
                         : service.description_en}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between mb-6">
                       <span className="text-sm text-white/50 font-body">
-                        {service.duration_minutes} {language === "ar" ? "دقيقة" : "minutes"}
+                        {service.duration_minutes} {language === "fr" ? "minutes" : "minutes"}
                       </span>
                       <span className="text-3xl font-bold text-gold font-heading">
                         {formatCurrency(service.price_tnd)}
@@ -98,7 +114,7 @@ export default function ServicesPage() {
                     </div>
                     <Link href="/book">
                       <Button className="w-full rounded-sm" size="lg">
-                        {language === "ar" ? "احجز الآن" : "Book Now"}
+                        {language === "fr" ? "Réserver maintenant" : "Book Now"}
                       </Button>
                     </Link>
                   </CardContent>

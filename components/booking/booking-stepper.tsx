@@ -9,9 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { createBooking, checkAvailability, getBookingsForDate } from "@/lib/supabase/queries";
+import { createBooking, checkAvailability, getBookingsForDate, getDisabledDates } from "@/lib/supabase/queries";
 import type { Barber, Service } from "@/lib/supabase/queries";
-import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
+import { formatCurrency, formatDate, formatTime, toLocalDateString } from "@/lib/utils";
 import { useLanguage } from "@/contexts/language-context";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { addDays, setHours, setMinutes, isBefore, isAfter, startOfDay } from "date-fns";
@@ -36,6 +36,29 @@ const TIME_SLOTS = Array.from({ length: 24 }, (_, i) => i)
     `${hour.toString().padStart(2, "0")}:30`,
   ]);
 
+// French labels for services (DB has name_ar in Arabic; we show FR)
+const SERVICE_NAME_FR: Record<string, string> = {
+  "Classic Cut": "Coupe classique",
+  "Premium Cut + Shave": "Coupe premium + rasage",
+  "Beard Trim": "Taille de barbe",
+  "Full Service": "Service complet",
+};
+const SERVICE_DESC_FR: Record<string, string> = {
+  "Classic Cut": "Coupe professionnelle avec coiffage",
+  "Premium Cut + Shave": "Coupe premium avec rasage à la serviette chaude",
+  "Beard Trim": "Taille et mise en forme précise de la barbe",
+  "Full Service": "Expérience complète : coupe, rasage et coiffage",
+};
+
+function getServiceName(service: Service, lang: string): string {
+  if (lang === "fr") return SERVICE_NAME_FR[service.name_en] ?? service.name_en;
+  return service.name_en;
+}
+function getServiceDesc(service: Service, lang: string): string {
+  if (lang === "fr") return SERVICE_DESC_FR[service.name_en] ?? service.description_en;
+  return service.description_en;
+}
+
 export function BookingStepper({ barbers, services }: BookingStepperProps) {
   const [step, setStep] = useState<Step>("service");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -49,18 +72,31 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
   const [checkingAvailability, setCheckingAvailability] = useState<string | null>(null);
   const [bookedSlots, setBookedSlots] = useState<Array<{ start: Date; end: Date }>>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [disabledDatesSet, setDisabledDatesSet] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { language } = useLanguage();
 
   const isFriday = (date: Date) => date.getDay() === 5;
 
+  // Fetch disabled (closed) dates so clients can't book those days
+  useEffect(() => {
+    const from = new Date();
+    const to = new Date();
+    to.setDate(to.getDate() + 90);
+    getDisabledDates(from, to).then((list) => {
+      setDisabledDatesSet(new Set(list.map((d) => d.date)));
+    });
+  }, []);
+
   const isDateDisabled = (date: Date) => {
     const today = startOfDay(new Date());
     const dateStart = startOfDay(date);
-    
+
     if (isBefore(dateStart, today)) return true;
     if (date.getDay() === 0) return true; // Sunday
-    
+    const dateStr = toLocalDateString(date);
+    if (disabledDatesSet.has(dateStr)) return true; // Salon closed
+
     return false;
   };
 
@@ -130,10 +166,23 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     setStep("datetime");
   };
 
-  const handleDateSelect = (date: Date | undefined) => {
+  const handleDateSelect = async (date: Date | undefined) => {
     if (!date) return;
     setSelectedDate(date);
     setSelectedTime("");
+    
+    // Refresh booked slots when date changes
+    if (selectedBarber) {
+      setLoadingSlots(true);
+      try {
+        const bookings = await getBookingsForDate(selectedBarber.id, date);
+        setBookedSlots(bookings);
+      } catch (error) {
+        console.error("Error fetching booked slots:", error);
+      } finally {
+        setLoadingSlots(false);
+      }
+    }
   };
 
   const handleTimeSelect = async (time: string) => {
@@ -158,8 +207,8 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
         setBookedSlots(bookings);
         toast({
-          title: "Slot No Longer Available",
-          description: "This time slot was just booked. Please select another time.",
+          title: language === "fr" ? "Créneau indisponible" : "Slot No Longer Available",
+          description: language === "fr" ? "Ce créneau vient d'être réservé. Choisissez un autre horaire." : "This time slot was just booked. Please select another time.",
           variant: "destructive",
         });
         setCheckingAvailability(null);
@@ -172,8 +221,8 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     } catch (error) {
       console.error("Error checking availability:", error);
       toast({
-        title: "Error",
-        description: "Failed to check availability. Please try again.",
+        title: language === "fr" ? "Erreur" : "Error",
+        description: language === "fr" ? "Impossible de vérifier la disponibilité. Réessayez." : "Failed to check availability. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -181,11 +230,44 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     }
   };
 
+  const validatePhoneNumber = (phone: string): boolean => {
+    // Remove any spaces, dashes, or plus signs
+    const cleaned = phone.replace(/[\s\-+]/g, '');
+    
+    // Must be exactly 8 digits
+    if (cleaned.length !== 8) return false;
+    
+    // Must be all digits
+    if (!/^\d+$/.test(cleaned)) return false;
+    
+    // First digit must be 9, 2, 4, or 5
+    const firstDigit = cleaned[0];
+    if (!['9', '2', '4', '5'].includes(firstDigit)) return false;
+    
+    return true;
+  };
+
+  const handlePhoneChange = (value: string) => {
+    // Remove any non-digit characters except spaces and dashes for display
+    const cleaned = value.replace(/[^\d\s\-+]/g, '');
+    setCustomerPhone(cleaned);
+  };
+
   const handleDetailsSubmit = () => {
     if (!customerName.trim() || !customerPhone.trim()) {
       toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
+        title: language === "fr" ? "Informations manquantes" : "Missing Information",
+        description: language === "fr" ? "Veuillez remplir tous les champs obligatoires." : "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate phone number
+    if (!validatePhoneNumber(customerPhone)) {
+      toast({
+        title: language === "fr" ? "Numéro invalide" : "Invalid Phone Number",
+        description: language === "fr" ? "Le numéro doit faire 8 chiffres et commencer par 9, 2, 4 ou 5 (ex. 91234567)." : "Phone number must be 8 digits starting with 9, 2, 4, or 5 (e.g., 91234567).",
         variant: "destructive",
       });
       return;
@@ -220,21 +302,29 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
           setBookedSlots(bookings);
         }
         toast({
-          title: "Slot No Longer Available",
-          description: "This time slot was just booked by someone else. Please select another time.",
+          title: language === "fr" ? "Créneau indisponible" : "Slot No Longer Available",
+          description: language === "fr" ? "Ce créneau vient d'être réservé. Choisissez un autre horaire." : "This time slot was just booked by someone else. Please select another time.",
           variant: "destructive",
         });
         setSelectedTime("");
+        // Refresh booked slots before going back
+        if (selectedBarber && selectedDate) {
+          const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
+          setBookedSlots(bookings);
+        }
         setStep("datetime");
         setIsSubmitting(false);
         return;
       }
 
+      // Clean phone number before sending (remove spaces, dashes, etc.)
+      const cleanedPhone = customerPhone.replace(/[\s\-+]/g, '');
+
       const booking = await createBooking({
         service_id: selectedService.id,
         barber_id: selectedBarber.id,
         customer_name: customerName,
-        customer_phone: customerPhone,
+        customer_phone: cleanedPhone,
         customer_email: customerEmail || undefined,
         booking_date: bookingDateTime.toISOString(),
       });
@@ -247,8 +337,10 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         }
         
         toast({
-          title: "Booking Confirmed!",
-          description: `Your appointment is confirmed for ${formatDate(bookingDateTime)} at ${formatTime(bookingDateTime)}.`,
+          title: language === "fr" ? "Réservation confirmée !" : "Booking Confirmed!",
+          description: language === "fr"
+            ? `Votre rendez-vous est confirmé pour le ${formatDate(bookingDateTime)} à ${formatTime(bookingDateTime)}.`
+            : `Your appointment is confirmed for ${formatDate(bookingDateTime)} at ${formatTime(bookingDateTime)}.`,
         });
         
         // Reset form
@@ -262,8 +354,8 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         setCustomerEmail("");
       } else {
         toast({
-          title: "Booking Failed",
-          description: "There was an error creating your booking. Please try again.",
+          title: language === "fr" ? "Échec de la réservation" : "Booking Failed",
+          description: language === "fr" ? "Une erreur s'est produite. Veuillez réessayer." : "There was an error creating your booking. Please try again.",
           variant: "destructive",
         });
       }
@@ -271,18 +363,35 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
       console.error("Error in handleConfirmBooking:", error);
       
       // Handle duplicate booking error specifically
-      if (error instanceof Error && error.message === 'DUPLICATE_BOOKING') {
+      if (error instanceof Error && error.message === "DUPLICATE_BOOKING") {
+        if (selectedBarber && selectedDate) {
+          try {
+            const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
+            setBookedSlots(bookings);
+          } catch (refreshError) {
+            console.error("Error refreshing slots:", refreshError);
+          }
+        }
         toast({
-          title: "Time Slot Already Booked",
-          description: "This time slot was just booked by someone else. Please select another time.",
+          title: language === "fr" ? "Créneau déjà réservé" : "Time Slot Already Booked",
+          description: language === "fr" ? "Ce créneau vient d'être réservé. Les horaires ont été mis à jour. Choisissez un autre créneau." : "This time slot was just booked by someone else. The available times have been updated. Please select another time.",
           variant: "destructive",
         });
         setSelectedTime("");
         setStep("datetime");
+      } else if (error instanceof Error && error.message === "DATE_DISABLED") {
+        toast({
+          title: language === "fr" ? "Jour fermé" : "Date unavailable",
+          description: language === "fr" ? "Ce jour est fermé. Veuillez choisir une autre date." : "This day is closed for bookings. Please choose another date.",
+          variant: "destructive",
+        });
+        setSelectedDate(undefined);
+        setSelectedTime("");
+        setStep("datetime");
       } else {
         toast({
-          title: "Booking Failed",
-          description: error instanceof Error ? error.message : "There was an error creating your booking. Please try again.",
+          title: language === "fr" ? "Échec de la réservation" : "Booking Failed",
+          description: error instanceof Error ? error.message : (language === "fr" ? "Une erreur s'est produite. Veuillez réessayer." : "There was an error creating your booking. Please try again."),
           variant: "destructive",
         });
       }
@@ -291,13 +400,21 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     }
   };
 
-  const steps = [
-    { id: "service", label: "Service" },
-    { id: "barber", label: "Barber" },
-    { id: "datetime", label: "Date & Time" },
-    { id: "details", label: "Details" },
-    { id: "confirm", label: "Confirm" },
-  ];
+  const steps = language === "fr"
+    ? [
+        { id: "service", label: "Service" },
+        { id: "barber", label: "Coiffeur" },
+        { id: "datetime", label: "Date et heure" },
+        { id: "details", label: "Coordonnées" },
+        { id: "confirm", label: "Confirmer" },
+      ]
+    : [
+        { id: "service", label: "Service" },
+        { id: "barber", label: "Barber" },
+        { id: "datetime", label: "Date & Time" },
+        { id: "details", label: "Details" },
+        { id: "confirm", label: "Confirm" },
+      ];
 
   const currentStepIndex = steps.findIndex((s) => s.id === step);
 
@@ -347,7 +464,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
           >
             <Card>
               <CardHeader>
-                <CardTitle>Select a Service</CardTitle>
+                <CardTitle>{language === "fr" ? "Choisir un service" : "Select a Service"}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -362,12 +479,10 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                       }`}
                     >
                       <h3 className="font-semibold text-lg mb-2">
-                        {language === "ar" ? service.name_ar : service.name_en}
+                        {getServiceName(service, language)}
                       </h3>
                       <p className="text-sm text-gray-600 mb-2">
-                        {language === "ar"
-                          ? service.description_ar
-                          : service.description_en}
+                        {getServiceDesc(service, language)}
                       </p>
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-500">
@@ -394,13 +509,13 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
           >
             <Card>
               <CardHeader>
-                <CardTitle>Choose Your Barber</CardTitle>
+                <CardTitle>{language === "fr" ? "Choisir votre coiffeur" : "Choose Your Barber"}</CardTitle>
                 <Button
                   variant="ghost"
                   onClick={() => setStep("service")}
                   className="mt-2"
                 >
-                  ← Back
+                  ← {language === "fr" ? "Retour" : "Back"}
                 </Button>
               </CardHeader>
               <CardContent>
@@ -421,7 +536,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                         </span>
                       </div>
                       <h3 className="font-semibold text-lg">
-                        {language === "ar" ? barber.name_ar : barber.name}
+                        {barber.name}
                       </h3>
                     </button>
                   ))}
@@ -440,18 +555,18 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
           >
             <Card>
               <CardHeader>
-                <CardTitle>Select Date & Time</CardTitle>
+                <CardTitle>{language === "fr" ? "Choisir la date et l'heure" : "Select Date & Time"}</CardTitle>
                 <Button
                   variant="ghost"
                   onClick={() => setStep("barber")}
                   className="mt-2"
                 >
-                  ← Back
+                  ← {language === "fr" ? "Retour" : "Back"}
                 </Button>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div>
-                  <Label className="mb-2 block">Date</Label>
+                  <Label className="mb-2 block">{language === "fr" ? "Date" : "Date"}</Label>
                   <Calendar
                     mode="single"
                     selected={selectedDate}
@@ -463,17 +578,17 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
 
                 {selectedDate && (
                   <div>
-                    <Label className="mb-2 block">Time</Label>
+                    <Label className="mb-2 block">{language === "fr" ? "Heure" : "Time"}</Label>
                     {loadingSlots ? (
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin text-gold" />
-                        <span className="ml-2 text-gray-600">Loading available times...</span>
+                        <span className="ml-2 text-gray-600">{language === "fr" ? "Chargement des créneaux..." : "Loading available times..."}</span>
                       </div>
                     ) : (
                       <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                         {getAvailableTimeSlots().length === 0 ? (
                           <div className="col-span-full text-center py-4 text-gray-500">
-                            No available time slots for this date. Please select another date.
+                            {language === "fr" ? "Aucun créneau disponible ce jour. Choisissez une autre date." : "No available time slots for this date. Please select another date."}
                           </div>
                         ) : (
                           getAvailableTimeSlots().map((slot) => (
@@ -515,43 +630,61 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
           >
             <Card>
               <CardHeader>
-                <CardTitle>Your Information</CardTitle>
+                <CardTitle>{language === "fr" ? "Vos coordonnées" : "Your Information"}</CardTitle>
                 <Button
                   variant="ghost"
-                  onClick={() => setStep("datetime")}
+                  onClick={async () => {
+                    setStep("datetime");
+                    if (selectedBarber && selectedDate) {
+                      setLoadingSlots(true);
+                      try {
+                        const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
+                        setBookedSlots(bookings);
+                      } catch (error) {
+                        console.error("Error refreshing booked slots:", error);
+                      } finally {
+                        setLoadingSlots(false);
+                      }
+                    }
+                  }}
                   className="mt-2"
                 >
-                  ← Back
+                  ← {language === "fr" ? "Retour" : "Back"}
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="name">Full Name *</Label>
+                  <Label htmlFor="name">{language === "fr" ? "Nom complet *" : "Full Name *"}</Label>
                   <Input
                     id="name"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Enter your full name"
+                    placeholder={language === "fr" ? "Votre nom complet" : "Enter your full name"}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Label htmlFor="phone">{language === "fr" ? "Téléphone *" : "Phone Number *"}</Label>
                   <Input
                     id="phone"
                     type="tel"
                     value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="+216 XX XXX XXX"
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    placeholder="91234567"
+                    maxLength={8}
+                    pattern="[9245][0-9]{7}"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {language === "fr" ? "8 chiffres commençant par 9, 2, 4 ou 5" : "8 digits starting with 9, 2, 4, or 5"}
+                  </p>
                 </div>
                 <div>
-                  <Label htmlFor="email">Email (Optional)</Label>
+                  <Label htmlFor="email">{language === "fr" ? "E-mail (optionnel)" : "Email (Optional)"}</Label>
                   <Input
                     id="email"
                     type="email"
                     value={customerEmail}
                     onChange={(e) => setCustomerEmail(e.target.value)}
-                    placeholder="your.email@example.com"
+                    placeholder="votre@email.com"
                   />
                 </div>
                 <Button
@@ -559,7 +692,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                   className="w-full"
                   size="lg"
                 >
-                  Continue
+                  {language === "fr" ? "Continuer" : "Continue"}
                 </Button>
               </CardContent>
             </Card>
@@ -575,13 +708,13 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
           >
             <Card>
               <CardHeader>
-                <CardTitle>Confirm Your Booking</CardTitle>
+                <CardTitle>{language === "fr" ? "Confirmer votre réservation" : "Confirm Your Booking"}</CardTitle>
                 <Button
                   variant="ghost"
                   onClick={() => setStep("details")}
                   className="mt-2"
                 >
-                  ← Back
+                  ← {language === "fr" ? "Retour" : "Back"}
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -589,35 +722,31 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                   <>
                     <div className="space-y-2 p-4 bg-beige rounded-lg">
                       <div className="flex justify-between">
-                        <span className="font-semibold">Service:</span>
+                        <span className="font-semibold">{language === "fr" ? "Service :" : "Service:"}</span>
                         <span>
-                          {language === "ar"
-                            ? selectedService.name_ar
-                            : selectedService.name_en}
+                          {getServiceName(selectedService, language)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-semibold">Barber:</span>
+                        <span className="font-semibold">{language === "fr" ? "Coiffeur :" : "Barber:"}</span>
                         <span>
-                          {language === "ar"
-                            ? selectedBarber.name_ar
-                            : selectedBarber.name}
+                          {selectedBarber.name}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-semibold">Date:</span>
+                        <span className="font-semibold">{language === "fr" ? "Date :" : "Date:"}</span>
                         <span>{formatDate(selectedDate)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-semibold">Time:</span>
+                        <span className="font-semibold">{language === "fr" ? "Heure :" : "Time:"}</span>
                         <span>{selectedTime}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-semibold">Duration:</span>
-                        <span>{selectedService.duration_minutes} minutes</span>
+                        <span className="font-semibold">{language === "fr" ? "Durée :" : "Duration:"}</span>
+                        <span>{selectedService.duration_minutes} {language === "fr" ? "min" : "minutes"}</span>
                       </div>
                       <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2">
-                        <span>Total:</span>
+                        <span>{language === "fr" ? "Total :" : "Total:"}</span>
                         <span className="text-gold">
                           {formatCurrency(selectedService.price_tnd)}
                         </span>
@@ -626,16 +755,16 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
 
                     <div className="space-y-2 p-4 bg-gray-50 rounded-lg">
                       <div className="flex justify-between">
-                        <span className="font-semibold">Name:</span>
+                        <span className="font-semibold">{language === "fr" ? "Nom :" : "Name:"}</span>
                         <span>{customerName}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-semibold">Phone:</span>
+                        <span className="font-semibold">{language === "fr" ? "Téléphone :" : "Phone:"}</span>
                         <span>{customerPhone}</span>
                       </div>
                       {customerEmail && (
                         <div className="flex justify-between">
-                          <span className="font-semibold">Email:</span>
+                          <span className="font-semibold">{language === "fr" ? "E-mail :" : "Email:"}</span>
                           <span>{customerEmail}</span>
                         </div>
                       )}
@@ -650,10 +779,10 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                       {isSubmitting ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Confirming...
+                          {language === "fr" ? "Confirmation..." : "Confirming..."}
                         </>
                       ) : (
-                        "Confirm Booking"
+                        language === "fr" ? "Confirmer la réservation" : "Confirm Booking"
                       )}
                     </Button>
                   </>

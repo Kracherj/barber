@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-type Language = "en" | "ar";
+type Language = "en" | "fr";
 
 interface LanguageContextType {
   language: Language;
@@ -15,40 +15,46 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.home": "Home",
     "nav.services": "Services",
     "nav.gallery": "Gallery",
+    "nav.products": "Produits",
     "nav.about": "About",
     "nav.contact": "Contact",
-    "nav.book": "Book Now",
-    "hero.title": "El Haj'Aime",
-    "hero.subtitle": "Precision Cuts, Tunisian Pride",
+    "nav.book": "Réserver",
+    "hero.title": "Joseph Coiff",
+    "hero.subtitle": "Coupes de précision, Fierté tunisienne",
     "hero.description":
-      "Experience premium grooming in the heart of Tunis. Traditional craftsmanship meets modern precision.",
-    "hero.cta": "Book Your Appointment",
-    "services.title": "Our Services",
-    "services.subtitle": "Professional grooming tailored to you",
-    "gallery.title": "Our Work",
-    "testimonials.title": "What Our Clients Say",
-    "footer.address": "Avenue Habib Bourguiba, Tunis",
-    "footer.hours": "Sat-Thu: 9AM-9PM | Fri: 2PM-9PM",
+      "Découvrez un toilettage premium au cœur de Tunis. L'artisanat traditionnel rencontre la précision moderne.",
+    "hero.cta": "Réservez votre rendez-vous",
+    "services.title": "Nos Services",
+    "services.subtitle": "Toilettage professionnel adapté à vos besoins",
+    "gallery.title": "Notre Travail",
+    "products.title": "Nos Produits",
+    "products.subtitle": "Découvrez notre sélection de produits de soins",
+    "testimonials.title": "Ce que disent nos clients",
+    "footer.address": "Tunis, Tunisie",
+    "footer.hours": "Sam-Jeu: 9h-21h | Ven: 14h-21h",
     "footer.phone": "+216 98 765 432",
   },
-  ar: {
-    "nav.home": "الرئيسية",
-    "nav.services": "الخدمات",
-    "nav.gallery": "معرض الصور",
-    "nav.about": "من نحن",
-    "nav.contact": "اتصل بنا",
-    "nav.book": "احجز الآن",
-    "hero.title": "الحاج عايم",
-    "hero.subtitle": "قص دقيق، فخر تونسي",
+  fr: {
+    "nav.home": "Accueil",
+    "nav.services": "Services",
+    "nav.gallery": "Galerie",
+    "nav.products": "Produits",
+    "nav.about": "À propos",
+    "nav.contact": "Contact",
+    "nav.book": "Réserver",
+    "hero.title": "Joseph Coiff",
+    "hero.subtitle": "Coupes de précision, Fierté tunisienne",
     "hero.description":
-      "استمتع بالعناية الفاخرة في قلب تونس. الحرفية التقليدية تلتقي بالدقة الحديثة.",
-    "hero.cta": "احجز موعدك",
-    "services.title": "خدماتنا",
-    "services.subtitle": "عناية احترافية مصممة خصيصاً لك",
-    "gallery.title": "أعمالنا",
-    "testimonials.title": "ماذا يقول عملاؤنا",
-    "footer.address": "شارع الحبيب بورقيبة، تونس",
-    "footer.hours": "السبت-الخميس: 9ص-9م | الجمعة: 2م-9م",
+      "Découvrez un toilettage premium au cœur de Tunis. L'artisanat traditionnel rencontre la précision moderne.",
+    "hero.cta": "Réservez votre rendez-vous",
+    "services.title": "Nos Services",
+    "services.subtitle": "Toilettage professionnel adapté à vos besoins",
+    "gallery.title": "Notre Travail",
+    "products.title": "Nos Produits",
+    "products.subtitle": "Découvrez notre sélection de produits de soins",
+    "testimonials.title": "Ce que disent nos clients",
+    "footer.address": "Tunis, Tunisie",
+    "footer.hours": "Sam-Jeu: 9h-21h | Ven: 14h-21h",
     "footer.phone": "+216 98 765 432",
   },
 };
@@ -58,11 +64,11 @@ const LanguageContext = createContext<LanguageContextType | undefined>(
 );
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("en");
+  const [language, setLanguageState] = useState<Language>("fr");
 
   useEffect(() => {
     const saved = localStorage.getItem("language") as Language;
-    if (saved && (saved === "en" || saved === "ar")) {
+    if (saved && (saved === "en" || saved === "fr")) {
       setLanguageState(saved);
     }
   }, []);
@@ -70,12 +76,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     localStorage.setItem("language", lang);
-    document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+    document.documentElement.dir = "ltr";
     document.documentElement.lang = lang;
   };
 
   useEffect(() => {
-    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+    document.documentElement.dir = "ltr";
     document.documentElement.lang = language;
   }, [language]);
 

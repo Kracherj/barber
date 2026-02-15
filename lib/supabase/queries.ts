@@ -1,4 +1,5 @@
 import { createClient } from "./client";
+import { toLocalDateString } from "@/lib/utils";
 
 export interface Barber {
   id: string;
@@ -28,6 +29,64 @@ export interface Booking {
   created_at: string;
   service?: Service;
   barber?: Barber;
+}
+
+export interface DisabledDate {
+  id: string;
+  date: string; // YYYY-MM-DD
+  reason?: string;
+  created_at: string;
+}
+
+export async function getDisabledDates(fromDate?: Date, toDate?: Date): Promise<DisabledDate[]> {
+  const supabase = createClient();
+  let query = supabase.from("disabled_dates").select("*").order("date", { ascending: true });
+
+  if (fromDate) {
+    query = query.gte("date", toLocalDateString(fromDate));
+  }
+  if (toDate) {
+    query = query.lte("date", toLocalDateString(toDate));
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Error fetching disabled dates:", error);
+    return [];
+  }
+  return (data || []).map((row) => ({ ...row, date: row.date.slice(0, 10) }));
+}
+
+export async function addDisabledDate(date: string, reason?: string): Promise<boolean> {
+  const supabase = createClient();
+  const { error } = await supabase.from("disabled_dates").insert({ date, reason });
+  if (error) {
+    console.error("Error adding disabled date:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function removeDisabledDate(date: string): Promise<boolean> {
+  const supabase = createClient();
+  const { error } = await supabase.from("disabled_dates").delete().eq("date", date);
+  if (error) {
+    console.error("Error removing disabled date:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function isDateDisabled(date: Date): Promise<boolean> {
+  const dateStr = date.toISOString().slice(0, 10);
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("disabled_dates")
+    .select("id")
+    .eq("date", dateStr)
+    .maybeSingle();
+  if (error) return false;
+  return !!data;
 }
 
 export async function getBarbers(): Promise<Barber[]> {
@@ -102,10 +161,52 @@ export async function createBooking(booking: {
   booking_date: string;
 }): Promise<Booking | null> {
   const supabase = createClient();
-  
-  // Log the booking data being sent for debugging
-  console.log("Creating booking with data:", JSON.stringify(booking, null, 2));
-  
+
+  // Block booking on disabled (closed) dates
+  const bookingDateStr = booking.booking_date.slice(0, 10);
+  const { data: disabled } = await supabase
+    .from("disabled_dates")
+    .select("id")
+    .eq("date", bookingDateStr)
+    .maybeSingle();
+  if (disabled) {
+    throw new Error("DATE_DISABLED");
+  }
+
+  // First, check if there's a cancelled booking at this exact time slot
+  // If so, update it instead of creating a new one (workaround for UNIQUE constraint)
+  const { data: existingBooking } = await supabase
+    .from("bookings")
+    .select("id, status")
+    .eq("barber_id", booking.barber_id)
+    .eq("booking_date", booking.booking_date)
+    .eq("status", "cancelled")
+    .maybeSingle();
+
+  if (existingBooking) {
+    // Update the cancelled booking to confirmed with new customer details
+    const { data, error } = await supabase
+      .from("bookings")
+      .update({
+        service_id: booking.service_id,
+        customer_name: booking.customer_name,
+        customer_phone: booking.customer_phone,
+        customer_email: booking.customer_email,
+        status: "confirmed",
+      })
+      .eq("id", existingBooking.id)
+      .select("*, service:services(*), barber:barbers(*)")
+      .single();
+
+    if (error) {
+      console.error("Error updating cancelled booking:", error);
+      return null;
+    }
+
+    return data;
+  }
+
+  // No cancelled booking exists, create a new one
   const { data, error } = await supabase
     .from("bookings")
     .insert(booking)

@@ -11,13 +11,13 @@ export default function AboutPage() {
 
   const content = {
     en: {
-      title: "About El Haj'Aime",
-      subtitle: "Traditional Tunisian Craftsmanship Meets Modern Precision",
-      story: `El Haj'Aime has been a cornerstone of Tunisian barbering tradition for generations. Located in the heart of Tunis, we combine time-honored techniques with contemporary styling to deliver an unparalleled grooming experience.
+      title: "À propos de Joseph Coiff",
+      subtitle: "L'artisanat tunisien traditionnel rencontre la précision moderne",
+      story: `Joseph Coiff est un pilier de la tradition de la coiffure tunisienne depuis des générations. Situé au cœur de Tunis, nous combinons des techniques ancestrales et un style contemporain pour offrir une expérience de toilettage inégalée.
 
-Our master barbers, Ahmed, Karim, and Walid, bring years of expertise and a passion for perfection to every cut, shave, and trim. We believe that grooming is an art form, and each client deserves personalized attention and meticulous care.
+Nos coiffeurs talentueux apportent des années d'expérience et une passion pour la perfection à chaque coupe, rasage et taille. Nous croyons que le toilettage est un art, et chaque client mérite une attention personnelle et des soins méticuleux.
 
-At El Haj'Aime, we're not just cutting hair—we're preserving a legacy of excellence while embracing the future of men's grooming.`,
+Chez Joseph Coiff, nous ne faisons pas que couper les cheveux—nous préservons un héritage d'excellence tout en embrassant l'avenir du toilettage masculin.`,
       values: [
         {
           icon: Award,
@@ -41,34 +41,34 @@ At El Haj'Aime, we're not just cutting hair—we're preserving a legacy of excel
         },
       ],
     },
-    ar: {
-      title: "من نحن",
-      subtitle: "الحرفية التونسية التقليدية تلتقي بالدقة الحديثة",
-      story: `الحاج عايم كان حجر الزاوية في تقليد الحلاقة التونسي لأجيال. يقع في قلب تونس، نجمع بين التقنيات العريقة والأسلوب المعاصر لتقديم تجربة عناية لا مثيل لها.
+    fr: {
+      title: "À propos de Joseph Coiff",
+      subtitle: "L'artisanat tunisien traditionnel rencontre la précision moderne",
+      story: `Joseph Coiff est un pilier de la tradition de la coiffure tunisienne depuis des générations. Situé au cœur de Tunis, nous combinons des techniques ancestrales et un style contemporain pour offrir une expérience de toilettage inégalée.
 
-حلاقونا الماهرون، أحمد، كريم، ووليد، يجلبون سنوات من الخبرة وشغف الكمال لكل قص، حلاقة، وتهذيب. نؤمن أن العناية فنية، وكل عميل يستحق اهتماماً شخصياً ورعاية دقيقة.
+Nos coiffeurs talentueux apportent des années d'expérience et une passion pour la perfection à chaque coupe, rasage et taille. Nous croyons que le toilettage est un art, et chaque client mérite une attention personnelle et des soins méticuleux.
 
-في الحاج عايم، نحن لا نقطع الشعر فقط—نحافظ على إرث من التميز مع احتضان مستقبل عناية الرجال.`,
+Chez Joseph Coiff, nous ne faisons pas que couper les cheveux—nous préservons un héritage d'excellence tout en embrassant l'avenir du toilettage masculin.`,
       values: [
         {
           icon: Award,
-          title: "التميز",
-          description: "جودة لا هوادة فيها في كل خدمة",
+          title: "Excellence",
+          description: "Qualité sans compromis dans chaque service",
         },
         {
           icon: Users,
-          title: "التقليد",
-          description: "تكريم تراث الحلاقة التونسي",
+          title: "Tradition",
+          description: "Honorer l'héritage de la barberie tunisienne",
         },
         {
           icon: Clock,
-          title: "الدقة",
-          description: "الانتباه للتفاصيل في كل قص",
+          title: "Précision",
+          description: "Attention aux détails dans chaque coupe",
         },
         {
           icon: Scissors,
-          title: "الابتكار",
-          description: "تقنيات حديثة، أسلوب خالد",
+          title: "Innovation",
+          description: "Techniques modernes, style intemporel",
         },
       ],
     },
@@ -123,7 +123,7 @@ At El Haj'Aime, we're not just cutting hair—we're preserving a legacy of excel
             transition={{ delay: 0.4 }}
           >
             <h2 className="text-4xl md:text-5xl font-heading font-bold text-white mb-12 tracking-tight">
-              {language === "ar" ? "قيمنا" : "Our Values"}
+              {language === "fr" ? "Nos Valeurs" : "Our Values"}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {currentContent.values.map((value, index) => {

@@ -9,13 +9,30 @@ export function Hero() {
   const { t } = useLanguage();
 
   return (
-    <section className="relative min-h-screen flex items-center bg-[#0E0E0E] text-white overflow-hidden">
+    <section className="relative min-h-screen flex items-center text-white overflow-hidden">
+      {/* Background image - visible especially on the right side */}
+      <div
+        className="absolute inset-0 bg-[#0E0E0E]"
+        aria-hidden
+      >
+        <div
+          className="absolute inset-0 bg-cover bg-right bg-no-repeat"
+          style={{ backgroundImage: "url('/images/background.png')" }}
+        />
+        {/* Dark gradient overlay from left so text stays readable */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: "linear-gradient(to right, rgba(14, 14, 14, 0.97) 0%, rgba(14, 14, 14, 0.7) 40%, rgba(14, 14, 14, 0.3) 65%, transparent 100%)",
+          }}
+        />
+      </div>
       {/* Soft radial lighting behind hero text */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div 
+        <div
           className="absolute left-0 top-1/2 -translate-y-1/2 w-[800px] h-[800px] blur-3xl"
           style={{
-            background: 'radial-gradient(circle, rgba(198, 167, 94, 0.1) 0%, rgba(198, 167, 94, 0.05) 50%, transparent 100%)'
+            background: "radial-gradient(circle, rgba(198, 167, 94, 0.1) 0%, rgba(198, 167, 94, 0.05) 50%, transparent 100%)",
           }}
         />
       </div>
@@ -29,7 +46,7 @@ export function Hero() {
         >
           {/* Massive Hero Title */}
           <h1 className="text-7xl md:text-8xl lg:text-9xl font-heading font-bold mb-6 leading-[0.9] tracking-tight text-white">
-            El Haj'aime
+            Joseph Coiff
           </h1>
 
           {/* Thin gold divider */}
@@ -42,7 +59,7 @@ export function Hero() {
             transition={{ delay: 0.3, duration: 0.8 }}
             className="text-xl md:text-2xl font-body text-white/80 mb-12 tracking-wide uppercase font-light"
           >
-            Precision. Presence. Power.
+            Précision. Présence. Puissance.
           </motion.p>
 
           {/* CTA Buttons */}
