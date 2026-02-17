@@ -1,14 +1,26 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
-import { WhatsAppButton } from "@/components/whatsapp-button";
-import { Navigation } from "@/components/navigation";
+import { ConditionalLayout } from "@/components/conditional-layout";
 import { LanguageProvider } from "@/contexts/language-context";
 import { Analytics } from "@/components/analytics";
 import Script from "next/script";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const inter = Inter({ 
+  subsets: ["latin"], 
+  variable: "--font-inter",
+  display: "swap",
+  preload: true,
+});
+
+const cormorantGaramond = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-heading",
+  display: "swap",
+  preload: true,
+});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -16,6 +28,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
   title: "Joseph Coiff | Coiffure Premium à Tunis",
   description:
     "Coupes de précision, Fierté tunisienne. Salon de coiffure premium au cœur de Tunis. Coupes classiques, services premium et produits de soins.",
@@ -33,6 +46,20 @@ export const metadata: Metadata = {
     type: "website",
     locale: "fr_TN",
     alternateLocale: "en_US",
+    images: [
+      {
+        url: "/images/logo.png",
+        width: 1200,
+        height: 630,
+        alt: "Joseph Coiff - Premium Barbershop",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Joseph Coiff | Coiffure Premium à Tunis",
+    description: "Coupes de précision, Fierté tunisienne",
+    images: ["/images/logo.png"],
   },
   robots: {
     index: true,
@@ -60,17 +87,31 @@ export default function RootLayout({
               src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
               strategy="afterInteractive"
             />
-            <Script id="google-analytics" strategy="afterInteractive">
-              {"window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag(\"js\", new Date()); gtag(\"config\", \"" + (process.env.NEXT_PUBLIC_GA_ID || "") + "\");"}
-            </Script>
+            <Script id="google-analytics" strategy="afterInteractive" dangerouslySetInnerHTML={{
+              __html: `
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}');
+              `,
+            }} />
           </>
         )}
 
         {/* Hotjar */}
         {process.env.NEXT_PUBLIC_HOTJAR_ID && (
-          <Script id="hotjar" strategy="afterInteractive">
-            {"(function(h,o,t,j,a,r){ h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments);}; h._hjSettings={hjid:\"" + (process.env.NEXT_PUBLIC_HOTJAR_ID || "") + "\",hjsv:6}; a=o.getElementsByTagName(\"head\")[0]; r=o.createElement(\"script\");r.async=1; r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv; a.appendChild(r); })(window,document,\"https://static.hotjar.com/c/hotjar-\",\".js?sv=\");"}
-          </Script>
+          <Script id="hotjar" strategy="afterInteractive" dangerouslySetInnerHTML={{
+            __html: `
+              (function(h,o,t,j,a,r){
+                h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments);};
+                h._hjSettings={hjid:"${process.env.NEXT_PUBLIC_HOTJAR_ID}",hjsv:6};
+                a=o.getElementsByTagName("head")[0];
+                r=o.createElement("script");r.async=1;
+                r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+                a.appendChild(r);
+              })(window,document,"https://static.hotjar.com/c/hotjar-",".js?sv=");
+            `,
+          }} />
         )}
 
         {/* Schema.org Local Business */}
@@ -115,11 +156,9 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.variable} antialiased`}>
+      <body className={`${inter.variable} ${cormorantGaramond.variable} antialiased`}>
         <LanguageProvider>
-          <Navigation />
-          <main className="min-h-screen">{children}</main>
-          <WhatsAppButton />
+          <ConditionalLayout>{children}</ConditionalLayout>
           <Toaster />
           <Analytics />
         </LanguageProvider>
