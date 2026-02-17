@@ -4,6 +4,15 @@ import { cookies } from "next/headers";
 
 export async function POST(request: NextRequest) {
   try {
+    // Check environment variables first
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("SUPABASE_SERVICE_ROLE_KEY is not set");
+      return NextResponse.json(
+        { error: "Server configuration error. Please contact administrator." },
+        { status: 500 }
+      );
+    }
+
     const { username, password } = await request.json();
 
     if (!username || !password) {
