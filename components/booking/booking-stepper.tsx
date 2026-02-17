@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { createBooking, checkAvailability, getBookingsForDate, getDisabledDates } from "@/lib/supabase/queries";
+import { createBooking, checkAvailability, getBookingsForDate, getDisabledDates, getBarberSchedule, isBarberAvailableOnDate, type BarberSchedule } from "@/lib/supabase/queries";
 import type { Barber, Service } from "@/lib/supabase/queries";
 import { formatCurrency, formatDate, formatTime, toLocalDateString } from "@/lib/utils";
 import { useLanguage } from "@/contexts/language-context";
@@ -73,6 +73,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
   const [bookedSlots, setBookedSlots] = useState<Array<{ start: Date; end: Date }>>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [disabledDatesSet, setDisabledDatesSet] = useState<Set<string>>(new Set());
+  const [barberSchedule, setBarberSchedule] = useState<BarberSchedule | null>(null);
   const { toast } = useToast();
   const { language } = useLanguage();
 
@@ -88,6 +89,18 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     });
   }, []);
 
+  // Fetch barber schedule when barber is selected (for date disabling)
+  useEffect(() => {
+    if (!selectedBarber) {
+      setBarberSchedule(null);
+      return;
+    }
+    const from = new Date();
+    const to = new Date();
+    to.setDate(to.getDate() + 90);
+    getBarberSchedule(selectedBarber.id, from, to).then(setBarberSchedule);
+  }, [selectedBarber?.id]);
+
   const isDateDisabled = (date: Date) => {
     const today = startOfDay(new Date());
     const dateStart = startOfDay(date);
@@ -96,6 +109,10 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     if (date.getDay() === 0) return true; // Sunday
     const dateStr = toLocalDateString(date);
     if (disabledDatesSet.has(dateStr)) return true; // Salon closed
+
+    if (selectedBarber && barberSchedule && !isBarberAvailableOnDate(barberSchedule, date)) {
+      return true; // Barber unavailable this day
+    }
 
     return false;
   };
@@ -139,15 +156,176 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     });
   };
 
+  // Helper function to parse time string (handles "HH:MM:SS" and "HH:MM" formats)
+  const parseTimeToMinutes = (timeStr: string): number => {
+    if (!timeStr || typeof timeStr !== 'string') {
+      console.warn('Invalid time string:', timeStr);
+      return 0;
+    }
+    const parts = timeStr.split(":").map(Number);
+    const hour = parts[0] || 0;
+    const minute = parts[1] || 0;
+    // Ignore seconds if present (parts[2])
+    // Validate hour and minute are valid numbers
+    if (isNaN(hour) || isNaN(minute)) {
+      console.warn('Invalid time format:', timeStr);
+      return 0;
+    }
+    return hour * 60 + minute;
+  };
+
   const getAvailableTimeSlots = () => {
-    if (!selectedDate || !selectedService || !selectedBarber) return [];
+    if (!selectedDate || !selectedService || !selectedBarber || !barberSchedule) return [];
 
-    const isFri = isFriday(selectedDate);
-    const startHour = isFri ? WORKING_HOURS.fridayStart : WORKING_HOURS.start;
+    const dateStr = toLocalDateString(selectedDate);
+    const dayOfWeek = selectedDate.getDay(); // 0=Sunday, 1=Monday, etc.
 
-    return TIME_SLOTS.filter((slot) => {
-      const [hours] = slot.split(":").map(Number);
-      if (hours < startHour) return false;
+    // Check for date-specific override first
+    const dateOverride = barberSchedule.dateOverrides.find((o) => o.date === dateStr);
+    
+    let scheduleStartTime: string | null = null;
+    let scheduleEndTime: string | null = null;
+    let breaks: Array<{ start_time: string; end_time: string }> = [];
+
+    if (dateOverride) {
+      // Use date override schedule
+      if (!dateOverride.is_available) return [];
+      if (dateOverride.start_time && dateOverride.end_time) {
+        scheduleStartTime = dateOverride.start_time;
+        scheduleEndTime = dateOverride.end_time;
+      }
+      breaks = dateOverride.breaks;
+    } else {
+      // Use weekly schedule
+      const weeklySchedule = barberSchedule.weekly.find((w) => w.day_of_week === dayOfWeek);
+      if (!weeklySchedule || !weeklySchedule.is_available) return [];
+      scheduleStartTime = weeklySchedule.start_time;
+      scheduleEndTime = weeklySchedule.end_time;
+      breaks = weeklySchedule.breaks;
+    }
+
+    // If no schedule times found, fall back to default working hours
+    if (!scheduleStartTime || !scheduleEndTime) {
+      const isFri = isFriday(selectedDate);
+      scheduleStartTime = isFri ? `${WORKING_HOURS.fridayStart.toString().padStart(2, "0")}:00:00` : `${WORKING_HOURS.start.toString().padStart(2, "0")}:00:00`;
+      scheduleEndTime = `${WORKING_HOURS.end.toString().padStart(2, "0")}:00:00`;
+    }
+
+    // Parse schedule times (handle "HH:MM:SS" format)
+    const scheduleStartMinutes = parseTimeToMinutes(scheduleStartTime);
+    const scheduleEndMinutes = parseTimeToMinutes(scheduleEndTime);
+
+    // Validate schedule times
+    if (scheduleStartMinutes >= scheduleEndMinutes) {
+      console.warn('Invalid schedule times:', { scheduleStartTime, scheduleEndTime, scheduleStartMinutes, scheduleEndMinutes });
+      return []; // Return empty if schedule is invalid
+    }
+
+    // Generate time slots based on schedule (every 30 minutes)
+    const availableSlots: string[] = [];
+    for (let slotMinutes = scheduleStartMinutes; slotMinutes < scheduleEndMinutes; slotMinutes += 30) {
+      const hours = Math.floor(slotMinutes / 60);
+      const mins = slotMinutes % 60;
+      const slotTime = `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+      
+      // Check if slot overlaps with any break
+      // A slot overlaps with a break if the service duration would cause it to overlap
+      // Example: Break 13:00-14:00, Service 30min: 12:00 slot ends at 12:30 (no overlap) ✓
+      //          Break 13:00-14:00, Service 75min: 12:00 slot ends at 13:15 (overlaps) ✗
+      const slotStartMinutes = slotMinutes;
+      const slotEndMinutes = slotStartMinutes + selectedService.duration_minutes;
+      
+      // Only check breaks if we have valid break data
+      // If breaks is empty or invalid, don't filter any slots
+      let overlapsBreak = false;
+      if (breaks && Array.isArray(breaks) && breaks.length > 0) {
+        // Filter out any invalid break entries before checking
+        const validBreaks = breaks.filter((bt) => 
+          bt && 
+          typeof bt === 'object' && 
+          bt.start_time && 
+          bt.end_time &&
+          typeof bt.start_time === 'string' &&
+          typeof bt.end_time === 'string'
+        );
+        
+        if (validBreaks.length === 0) {
+          // No valid breaks, don't filter anything
+          overlapsBreak = false;
+        } else {
+          overlapsBreak = validBreaks.some((breakTime) => {
+            // Validate break time object has required fields
+            if (!breakTime || typeof breakTime !== 'object' || !breakTime.start_time || !breakTime.end_time) {
+              return false; // Skip invalid break entries
+            }
+            
+            const breakStartMinutes = parseTimeToMinutes(breakTime.start_time);
+            const breakEndMinutes = parseTimeToMinutes(breakTime.end_time);
+            
+            // Skip if parsing failed (returned 0 for invalid times, unless it's actually midnight)
+            // We'll allow midnight (00:00) as a valid time
+            if (breakStartMinutes === 0 && breakTime.start_time !== '00:00' && breakTime.start_time !== '00:00:00' && !breakTime.start_time.startsWith('00:00')) {
+              return false; // Invalid start time
+            }
+            if (breakEndMinutes === 0 && breakTime.end_time !== '00:00' && breakTime.end_time !== '00:00:00' && !breakTime.end_time.startsWith('00:00')) {
+              return false; // Invalid end time
+            }
+            
+            // Validate break times are valid (start < end)
+            if (breakStartMinutes >= breakEndMinutes) {
+              console.warn('Invalid break range:', breakTime);
+              return false; // Invalid break range
+            }
+            
+            // Check if slot overlaps with break
+            // Two time ranges overlap if they share any common time
+            // Overlap occurs when: slotStart < breakEnd && slotEnd > breakStart
+            // This means the slot must start before the break ends AND end after the break starts
+            // We use strict inequality to allow:
+            // - Slots that end exactly when break starts (slotEnd === breakStart) → no overlap
+            // - Slots that start exactly when break ends (slotStart === breakEnd) → no overlap
+            
+            const overlaps = slotStartMinutes < breakEndMinutes && slotEndMinutes > breakStartMinutes;
+            
+            // Debug logging for slots near break time
+            const slotHour = Math.floor(slotStartMinutes / 60);
+            const breakStartHour = Math.floor(breakStartMinutes / 60);
+            const breakEndHour = Math.floor(breakEndMinutes / 60);
+            
+            // Log if slot is within 2 hours of break time or if it overlaps
+            if (overlaps || (slotHour >= breakStartHour - 1 && slotHour <= breakEndHour + 1)) {
+              console.log(`[Break Check] Slot ${slotTime} (${slotStartMinutes}-${slotEndMinutes}min, ${selectedService.duration_minutes}min service) vs Break ${breakTime.start_time}-${breakTime.end_time} (${breakStartMinutes}-${breakEndMinutes}min):`, {
+                overlaps,
+                reason: overlaps 
+                  ? `Service time (${Math.floor(slotStartMinutes/60)}:${String(slotStartMinutes%60).padStart(2,'0')} to ${Math.floor(slotEndMinutes/60)}:${String(slotEndMinutes%60).padStart(2,'0')}) overlaps with break (${Math.floor(breakStartMinutes/60)}:${String(breakStartMinutes%60).padStart(2,'0')} to ${Math.floor(breakEndMinutes/60)}:${String(breakEndMinutes%60).padStart(2,'0')})`
+                  : 'No overlap'
+              });
+            }
+            
+            return overlaps;
+          });
+        }
+      }
+
+      if (!overlapsBreak) {
+        availableSlots.push(slotTime);
+      }
+    }
+
+    // Check if selected date is today
+    const today = startOfDay(new Date());
+    const selectedDateStart = startOfDay(selectedDate);
+    const isToday = selectedDateStart.getTime() === today.getTime();
+    const now = new Date();
+
+    return availableSlots.filter((slot) => {
+      // Filter out past times if the selected date is today
+      if (isToday) {
+        const [hours, minutes] = slot.split(":").map(Number);
+        const slotTime = new Date(selectedDate);
+        slotTime.setHours(hours, minutes, 0, 0);
+        if (isBefore(slotTime, now)) return false;
+      }
 
       // Filter out booked slots
       if (isSlotBooked(slot)) return false;
@@ -207,8 +385,8 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
         setBookedSlots(bookings);
         toast({
-          title: language === "fr" ? "Créneau indisponible" : "Slot No Longer Available",
-          description: language === "fr" ? "Ce créneau vient d'être réservé. Choisissez un autre horaire." : "This time slot was just booked. Please select another time.",
+          title: language === "fr" ? "Créneau indisponible" : "Slot Not Available",
+          description: language === "fr" ? "Ce créneau n'est pas disponible. Choisissez une autre date ou heure." : "This time slot is not available. Please select another date or time.",
           variant: "destructive",
         });
         setCheckingAvailability(null);
@@ -302,8 +480,8 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
           setBookedSlots(bookings);
         }
         toast({
-          title: language === "fr" ? "Créneau indisponible" : "Slot No Longer Available",
-          description: language === "fr" ? "Ce créneau vient d'être réservé. Choisissez un autre horaire." : "This time slot was just booked by someone else. Please select another time.",
+          title: language === "fr" ? "Créneau indisponible" : "Slot Not Available",
+          description: language === "fr" ? "Ce créneau n'est pas disponible. Choisissez une autre date ou heure." : "This time slot is not available. Please select another date or time.",
           variant: "destructive",
         });
         setSelectedTime("");
@@ -388,6 +566,49 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         setSelectedDate(undefined);
         setSelectedTime("");
         setStep("datetime");
+      } else if (error instanceof Error && error.message === "BARBER_UNAVAILABLE") {
+        toast({
+          title: language === "fr" ? "Coiffeur indisponible" : "Barber unavailable",
+          description: language === "fr" ? "Ce coiffeur n'est pas disponible à cette date/heure. Veuillez choisir une autre date." : "This barber is not available at this date/time. Please choose another date.",
+          variant: "destructive",
+        });
+        setSelectedDate(undefined);
+        setSelectedTime("");
+        setStep("datetime");
+      } else if (error instanceof Error && error.message === "SERVICE_NOT_FOUND") {
+        toast({
+          title: language === "fr" ? "Service introuvable" : "Service Not Found",
+          description: language === "fr" ? "Le service sélectionné n'existe plus. Veuillez choisir un autre service." : "The selected service no longer exists. Please choose another service.",
+          variant: "destructive",
+        });
+        setStep("service");
+        setSelectedService(null);
+      } else if (error instanceof Error && (error.message.startsWith("INVALID_") || error.message.startsWith("FAILED_TO_"))) {
+        // Handle validation and system errors
+        const errorMessage = error.message;
+        let userMessage = language === "fr" 
+          ? "Une erreur s'est produite. Veuillez vérifier vos informations et réessayer."
+          : "An error occurred. Please check your information and try again.";
+        
+        if (errorMessage.includes("INVALID_PHONE")) {
+          userMessage = language === "fr"
+            ? "Numéro de téléphone invalide. Le numéro doit faire 8 chiffres commençant par 9, 2, 4 ou 5."
+            : "Invalid phone number. Must be 8 digits starting with 9, 2, 4, or 5.";
+        } else if (errorMessage.includes("INVALID_EMAIL")) {
+          userMessage = language === "fr"
+            ? "Adresse e-mail invalide. Veuillez vérifier votre e-mail."
+            : "Invalid email address. Please check your email.";
+        } else if (errorMessage.includes("INVALID_BOOKING_DATE")) {
+          userMessage = language === "fr"
+            ? "Date de réservation invalide. Veuillez choisir une date valide dans le futur."
+            : "Invalid booking date. Please choose a valid future date.";
+        }
+        
+        toast({
+          title: language === "fr" ? "Erreur de validation" : "Validation Error",
+          description: userMessage,
+          variant: "destructive",
+        });
       } else {
         toast({
           title: language === "fr" ? "Échec de la réservation" : "Booking Failed",
@@ -421,32 +642,34 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
   return (
     <div className="space-y-8">
       {/* Progress Steps */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-6 sm:mb-8 overflow-x-auto pb-2">
         {steps.map((s, index) => (
-          <div key={s.id} className="flex items-center flex-1">
-            <div className="flex flex-col items-center flex-1">
+          <div key={s.id} className="flex items-center flex-1 min-w-0">
+            <div className="flex flex-col items-center flex-1 min-w-0">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base transition-all duration-200 ${
                   index <= currentStepIndex
-                    ? "bg-gold text-navy"
+                    ? "bg-gold text-navy scale-105"
                     : "bg-gray-200 text-gray-500"
                 }`}
+                aria-label={`Step ${index + 1}: ${s.label}`}
               >
                 {index < currentStepIndex ? (
-                  <CheckCircle2 className="h-6 w-6" />
+                  <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
                 ) : (
                   index + 1
                 )}
               </div>
-              <span className="text-xs mt-2 text-center hidden sm:block">
+              <span className="text-xs sm:text-sm mt-2 text-center px-1 truncate w-full">
                 {s.label}
               </span>
             </div>
             {index < steps.length - 1 && (
               <div
-                className={`h-1 flex-1 mx-2 ${
+                className={`h-1 flex-1 mx-1 sm:mx-2 transition-colors duration-300 ${
                   index < currentStepIndex ? "bg-gold" : "bg-gray-200"
                 }`}
+                aria-hidden="true"
               />
             )}
           </div>
@@ -467,16 +690,17 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                 <CardTitle>{language === "fr" ? "Choisir un service" : "Select a Service"}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {services.map((service) => (
                     <button
                       key={service.id}
                       onClick={() => handleServiceSelect(service)}
-                      className={`p-4 rounded-lg border-2 text-left transition-all ${
+                      className={`p-4 sm:p-6 rounded-lg border-2 text-left transition-all duration-200 active:scale-[0.98] min-h-[120px] ${
                         selectedService?.id === service.id
-                          ? "border-gold bg-gold/10"
-                          : "border-gray-200 hover:border-gold"
+                          ? "border-gold bg-gold/10 shadow-lg shadow-gold/10"
+                          : "border-gray-200 hover:border-gold hover:bg-white/5"
                       }`}
+                      aria-pressed={selectedService?.id === service.id}
                     >
                       <h3 className="font-semibold text-lg mb-2">
                         {getServiceName(service, language)}
@@ -519,16 +743,17 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                 </Button>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {barbers.map((barber) => (
                     <button
                       key={barber.id}
                       onClick={() => handleBarberSelect(barber)}
-                      className={`p-6 rounded-lg border-2 text-center transition-all ${
+                      className={`p-6 rounded-lg border-2 text-center transition-all duration-200 active:scale-[0.98] min-h-[140px] ${
                         selectedBarber?.id === barber.id
-                          ? "border-gold bg-gold/10"
-                          : "border-gray-200 hover:border-gold"
+                          ? "border-gold bg-gold/10 shadow-lg shadow-gold/10"
+                          : "border-gray-200 hover:border-gold hover:bg-white/5"
                       }`}
+                      aria-pressed={selectedBarber?.id === barber.id}
                     >
                       <div className="w-20 h-20 rounded-full bg-navy/10 mx-auto mb-4 flex items-center justify-center">
                         <span className="text-2xl font-bold text-navy">
@@ -585,9 +810,9 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                         <span className="ml-2 text-gray-600">{language === "fr" ? "Chargement des créneaux..." : "Loading available times..."}</span>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-3">
                         {getAvailableTimeSlots().length === 0 ? (
-                          <div className="col-span-full text-center py-4 text-gray-500">
+                          <div className="col-span-full text-center py-6 sm:py-8 text-gray-500 text-sm sm:text-base">
                             {language === "fr" ? "Aucun créneau disponible ce jour. Choisissez une autre date." : "No available time slots for this date. Please select another date."}
                           </div>
                         ) : (
@@ -596,13 +821,14 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                               key={slot}
                               onClick={() => handleTimeSelect(slot)}
                               disabled={checkingAvailability !== null}
-                              className={`p-3 rounded-lg border-2 text-sm transition-all ${
+                              className={`p-3 sm:p-4 rounded-lg border-2 text-xs sm:text-sm transition-all duration-200 active:scale-95 min-h-[44px] ${
                                 selectedTime === slot
-                                  ? "border-gold bg-gold text-navy font-semibold"
+                                  ? "border-gold bg-gold text-navy font-semibold shadow-lg shadow-gold/20"
                                   : checkingAvailability === slot
                                   ? "border-gold bg-gold/20"
-                                  : "border-gray-200 hover:border-gold"
+                                  : "border-gray-200 hover:border-gold hover:bg-white/5"
                               } disabled:opacity-50 disabled:cursor-not-allowed`}
+                              aria-pressed={selectedTime === slot}
                             >
                               {checkingAvailability === slot ? (
                                 <Loader2 className="h-4 w-4 animate-spin mx-auto" />
@@ -689,7 +915,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                 </div>
                 <Button
                   onClick={handleDetailsSubmit}
-                  className="w-full"
+                  className="w-full min-h-[56px] text-base font-semibold active:scale-[0.98]"
                   size="lg"
                 >
                   {language === "fr" ? "Continuer" : "Continue"}
@@ -772,14 +998,15 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
 
                     <Button
                       onClick={handleConfirmBooking}
-                      className="w-full"
+                      className="w-full min-h-[56px] text-base font-semibold active:scale-[0.98]"
                       size="lg"
                       disabled={isSubmitting}
+                      aria-busy={isSubmitting}
                     >
                       {isSubmitting ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          {language === "fr" ? "Confirmation..." : "Confirming..."}
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
+                          <span>{language === "fr" ? "Confirmation..." : "Confirming..."}</span>
                         </>
                       ) : (
                         language === "fr" ? "Confirmer la réservation" : "Confirm Booking"
