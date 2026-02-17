@@ -1,4 +1,3 @@
-import { createClient } from "./server";
 import { createAdminClient } from "./admin-client";
 import bcrypt from "bcryptjs";
 
