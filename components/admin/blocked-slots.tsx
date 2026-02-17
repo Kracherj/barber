@@ -151,11 +151,43 @@ export function BlockedSlotsManagement() {
   };
 
   const handleDelete = async (slotId: string) => {
-    // Implement delete API endpoint if needed
-    toast({
-      title: "Info",
-      description: "Delete functionality to be implemented",
-    });
+    if (!selectedBarberId) return;
+
+    if (
+      !confirm(
+        "Are you sure you want to delete this blocked time slot? This will make the time slot available for booking again."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/admin/barbers/${selectedBarberId}/blocked-slots?slot_id=${slotId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete blocked slot");
+      }
+
+      toast({
+        title: "Success",
+        description: "Blocked slot deleted successfully",
+      });
+
+      loadBlockedSlots();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   return (

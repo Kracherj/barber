@@ -183,3 +183,73 @@ export async function POST(
     );
   }
 }
+
+// DELETE - Delete blocked slot
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get("admin_session")?.value;
+    
+    if (!sessionToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    await requireAdmin(sessionToken);
+    const supabase = createAdminClient();
+    
+    // Get slot_id from query parameters
+    const { searchParams } = new URL(request.url);
+    const slotId = searchParams.get("slot_id");
+
+    if (!slotId) {
+      return NextResponse.json(
+        { error: "slot_id query parameter is required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify the blocked slot belongs to this barber
+    const { data: blockedSlot, error: fetchError } = await supabase
+      .from("barber_blocked_slots")
+      .select("barber_id")
+      .eq("id", slotId)
+      .single();
+
+    if (fetchError || !blockedSlot) {
+      return NextResponse.json(
+        { error: "Blocked slot not found" },
+        { status: 404 }
+      );
+    }
+
+    if (blockedSlot.barber_id !== id) {
+      return NextResponse.json(
+        { error: "Blocked slot does not belong to this barber" },
+        { status: 403 }
+      );
+    }
+
+    // Delete the blocked slot
+    const { error: deleteError } = await supabase
+      .from("barber_blocked_slots")
+      .delete()
+      .eq("id", slotId);
+
+    if (deleteError) throw deleteError;
+
+    return NextResponse.json({
+      success: true,
+      message: "Blocked slot deleted successfully",
+    });
+  } catch (error: any) {
+    console.error("Error deleting blocked slot:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to delete blocked slot" },
+      { status: 500 }
+    );
+  }
+}
