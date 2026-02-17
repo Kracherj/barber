@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { createBooking, checkAvailability, getBookingsForDate, getDisabledDates, getBarberSchedule, isBarberAvailableOnDate, type BarberSchedule } from "@/lib/supabase/queries";
+import { createBooking, checkAvailability, getBookingsForDate, getBlockedSlotsForDate, getDisabledDates, getBarberSchedule, isBarberAvailableOnDate, type BarberSchedule } from "@/lib/supabase/queries";
 import type { Barber, Service } from "@/lib/supabase/queries";
 import { formatCurrency, formatDate, formatTime, toLocalDateString } from "@/lib/utils";
 import { useLanguage } from "@/contexts/language-context";
@@ -117,7 +117,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     return false;
   };
 
-  // Fetch booked slots when date or barber changes
+  // Fetch booked slots and blocked slots when date or barber changes
   useEffect(() => {
     if (!selectedDate || !selectedBarber) {
       setBookedSlots([]);
@@ -127,8 +127,12 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     const fetchBookedSlots = async () => {
       setLoadingSlots(true);
       try {
-        const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
-        setBookedSlots(bookings);
+        const [bookings, blockedSlots] = await Promise.all([
+          getBookingsForDate(selectedBarber.id, selectedDate),
+          getBlockedSlotsForDate(selectedBarber.id, selectedDate),
+        ]);
+        // Merge bookings and blocked slots into a single array
+        setBookedSlots([...bookings, ...blockedSlots]);
       } catch (error) {
         console.error("Error fetching booked slots:", error);
         setBookedSlots([]);
@@ -349,12 +353,16 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     setSelectedDate(date);
     setSelectedTime("");
     
-    // Refresh booked slots when date changes
+    // Refresh booked slots and blocked slots when date changes
     if (selectedBarber) {
       setLoadingSlots(true);
       try {
-        const bookings = await getBookingsForDate(selectedBarber.id, date);
-        setBookedSlots(bookings);
+        const [bookings, blockedSlots] = await Promise.all([
+          getBookingsForDate(selectedBarber.id, date),
+          getBlockedSlotsForDate(selectedBarber.id, date),
+        ]);
+        // Merge bookings and blocked slots into a single array
+        setBookedSlots([...bookings, ...blockedSlots]);
       } catch (error) {
         console.error("Error fetching booked slots:", error);
       } finally {
@@ -381,9 +389,12 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
       );
 
       if (!isAvailable) {
-        // Refresh booked slots to update the UI
-        const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
-        setBookedSlots(bookings);
+        // Refresh booked slots and blocked slots to update the UI
+        const [bookings, blockedSlots] = await Promise.all([
+          getBookingsForDate(selectedBarber.id, selectedDate),
+          getBlockedSlotsForDate(selectedBarber.id, selectedDate),
+        ]);
+        setBookedSlots([...bookings, ...blockedSlots]);
         toast({
           title: language === "fr" ? "Créneau indisponible" : "Slot Not Available",
           description: language === "fr" ? "Ce créneau n'est pas disponible. Choisissez une autre date ou heure." : "This time slot is not available. Please select another date or time.",
@@ -474,10 +485,13 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
       );
 
       if (!isStillAvailable) {
-        // Refresh booked slots to update the UI
+        // Refresh booked slots and blocked slots to update the UI
         if (selectedBarber && selectedDate) {
-          const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
-          setBookedSlots(bookings);
+          const [bookings, blockedSlots] = await Promise.all([
+            getBookingsForDate(selectedBarber.id, selectedDate),
+            getBlockedSlotsForDate(selectedBarber.id, selectedDate),
+          ]);
+          setBookedSlots([...bookings, ...blockedSlots]);
         }
         toast({
           title: language === "fr" ? "Créneau indisponible" : "Slot Not Available",
@@ -485,10 +499,13 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
           variant: "destructive",
         });
         setSelectedTime("");
-        // Refresh booked slots before going back
+        // Refresh booked slots and blocked slots before going back
         if (selectedBarber && selectedDate) {
-          const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
-          setBookedSlots(bookings);
+          const [bookings, blockedSlots] = await Promise.all([
+            getBookingsForDate(selectedBarber.id, selectedDate),
+            getBlockedSlotsForDate(selectedBarber.id, selectedDate),
+          ]);
+          setBookedSlots([...bookings, ...blockedSlots]);
         }
         setStep("datetime");
         setIsSubmitting(false);
@@ -508,10 +525,13 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
       });
 
       if (booking) {
-        // Refresh booked slots to update the UI
+        // Refresh booked slots and blocked slots to update the UI
         if (selectedBarber && selectedDate) {
-          const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
-          setBookedSlots(bookings);
+          const [bookings, blockedSlots] = await Promise.all([
+            getBookingsForDate(selectedBarber.id, selectedDate),
+            getBlockedSlotsForDate(selectedBarber.id, selectedDate),
+          ]);
+          setBookedSlots([...bookings, ...blockedSlots]);
         }
         
         toast({
@@ -544,8 +564,11 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
       if (error instanceof Error && error.message === "DUPLICATE_BOOKING") {
         if (selectedBarber && selectedDate) {
           try {
-            const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
-            setBookedSlots(bookings);
+            const [bookings, blockedSlots] = await Promise.all([
+              getBookingsForDate(selectedBarber.id, selectedDate),
+              getBlockedSlotsForDate(selectedBarber.id, selectedDate),
+            ]);
+            setBookedSlots([...bookings, ...blockedSlots]);
           } catch (refreshError) {
             console.error("Error refreshing slots:", refreshError);
           }
@@ -864,8 +887,11 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                     if (selectedBarber && selectedDate) {
                       setLoadingSlots(true);
                       try {
-                        const bookings = await getBookingsForDate(selectedBarber.id, selectedDate);
-                        setBookedSlots(bookings);
+                        const [bookings, blockedSlots] = await Promise.all([
+                          getBookingsForDate(selectedBarber.id, selectedDate),
+                          getBlockedSlotsForDate(selectedBarber.id, selectedDate),
+                        ]);
+                        setBookedSlots([...bookings, ...blockedSlots]);
                       } catch (error) {
                         console.error("Error refreshing booked slots:", error);
                       } finally {

@@ -586,3 +586,33 @@ export async function getBookingsForDate(
     return { start, end };
   });
 }
+
+export async function getBlockedSlotsForDate(
+  barberId: string,
+  date: Date
+): Promise<Array<{ start: Date; end: Date }>> {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+  
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("barber_blocked_slots")
+    .select("start_time, end_time")
+    .eq("barber_id", barberId)
+    .gte("end_time", startOfDay.toISOString())
+    .lte("start_time", endOfDay.toISOString());
+
+  if (error) {
+    console.error("Error fetching blocked slots for date:", error);
+    return [];
+  }
+
+  // Return array of blocked slot time ranges (start and end)
+  return (data || []).map((blockedSlot: any) => {
+    const start = new Date(blockedSlot.start_time);
+    const end = new Date(blockedSlot.end_time);
+    return { start, end };
+  });
+}
