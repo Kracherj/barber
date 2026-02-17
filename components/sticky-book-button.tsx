@@ -9,13 +9,13 @@ export function StickyBookButton() {
   const { t } = useLanguage();
 
   return (
-    <div className="fixed bottom-24 right-6 z-40 md:hidden">
-      <Link href="/book">
+    <div className="fixed bottom-28 right-6 z-40 md:hidden">
+      <Link href="/book" aria-label="Book appointment">
         <Button
           size="lg"
-          className="h-14 px-6 rounded-sm shadow-lg hover:shadow-gold-glow transition-all bg-gold text-[#0E0E0E] font-semibold tracking-wide"
+          className="h-14 min-h-[56px] px-6 rounded-sm shadow-lg hover:shadow-xl hover:shadow-gold/30 transition-all bg-gold text-[#0E0E0E] font-semibold tracking-wide active:scale-95"
         >
-          <Calendar className="h-5 w-5 mr-2" />
+          <Calendar className="h-5 w-5 mr-2" aria-hidden="true" />
           {t("nav.book")}
         </Button>
       </Link>

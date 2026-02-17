@@ -21,6 +21,18 @@ export function Navigation() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileMenuOpen]);
+
   const navItems = [
     { href: "/", label: t("nav.home") },
     { href: "/services", label: t("nav.services") },
@@ -40,12 +52,12 @@ export function Navigation() {
     >
       <div className="container mx-auto px-6 md:px-12 lg:px-16">
         <div className="flex h-20 items-center justify-between">
-          <Link href="/" className="flex items-center space-x-3 group">
+          <Link href="/" className="flex items-center space-x-3 group" aria-label="Joseph Coiff Home">
             <div className="relative h-10 w-10 flex items-center justify-center shrink-0">
-              <Scissors className="h-6 w-6 text-gold transition-transform group-hover:rotate-12" />
+              <Scissors className="h-6 w-6 text-gold transition-transform group-hover:rotate-12" aria-hidden="true" />
               <img
                 src="/images/logo.png"
-                alt=""
+                alt="Joseph Coiff Logo"
                 className="absolute inset-0 h-10 w-10 object-contain opacity-0 transition-opacity"
                 onError={(e) => { e.currentTarget.style.display = "none"; }}
                 onLoad={(e) => { (e.target as HTMLImageElement).style.opacity = "1"; }}
@@ -89,43 +101,47 @@ export function Navigation() {
             </Link>
             <button
               onClick={() => setLanguage(language === "en" ? "fr" : "en")}
-              className="flex items-center space-x-1 px-3 py-2 text-sm font-medium text-white/80 hover:text-gold transition-colors"
-              aria-label="Toggle language"
+              className="flex items-center justify-center space-x-1 px-4 py-2 min-h-[44px] min-w-[44px] text-sm font-medium text-white/80 hover:text-gold active:scale-95 transition-all duration-200 rounded-sm"
+              aria-label={language === "en" ? "Switch to French" : "Switch to English"}
             >
-              <Globe className="h-4 w-4" />
+              <Globe className="h-4 w-4" aria-hidden="true" />
               <span className="tracking-wide">{language === "en" ? "FR" : "EN"}</span>
             </button>
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="flex md:hidden items-center space-x-3">
+          <div className="flex md:hidden items-center space-x-2">
             <button
               onClick={() => setLanguage(language === "en" ? "fr" : "en")}
-              className="p-2"
-              aria-label="Toggle language"
+              className="flex items-center justify-center min-h-[44px] min-w-[44px] p-2 active:scale-95 transition-all duration-200 rounded-sm"
+              aria-label={language === "en" ? "Switch to French" : "Switch to English"}
             >
-              <Globe className="h-5 w-5 text-white" />
+              <Globe className="h-5 w-5 text-white" aria-hidden="true" />
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2"
-              aria-label="Toggle menu"
+              className="flex items-center justify-center min-h-[44px] min-w-[44px] p-2 active:scale-95 transition-all duration-200 rounded-sm"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
             >
               <div className="space-y-1.5">
                 <span
-                  className={`block h-[1px] w-6 bg-white transition-all ${
+                  className={`block h-[2px] w-6 bg-white transition-all ${
                     mobileMenuOpen ? "rotate-45 translate-y-2" : ""
                   }`}
+                  aria-hidden="true"
                 />
                 <span
-                  className={`block h-[1px] w-6 bg-white transition-all ${
+                  className={`block h-[2px] w-6 bg-white transition-all ${
                     mobileMenuOpen ? "opacity-0" : ""
                   }`}
+                  aria-hidden="true"
                 />
                 <span
-                  className={`block h-[1px] w-6 bg-white transition-all ${
+                  className={`block h-[2px] w-6 bg-white transition-all ${
                     mobileMenuOpen ? "-rotate-45 -translate-y-2" : ""
                   }`}
+                  aria-hidden="true"
                 />
               </div>
             </button>
@@ -134,26 +150,28 @@ export function Navigation() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-6 space-y-2 border-t border-white/10">
+          <div className="md:hidden py-6 space-y-1 border-t border-white/10 max-h-[calc(100vh-80px)] overflow-y-auto">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`block px-4 py-3 text-sm font-medium transition-colors tracking-wide ${
+                className={`block px-6 py-4 min-h-[44px] text-base font-medium transition-colors tracking-wide ${
                   pathname === item.href
-                    ? "text-gold border-l-2 border-gold pl-3"
-                    : "text-white/80 hover:text-white hover:pl-4"
+                    ? "text-gold border-l-2 border-gold pl-4 bg-white/5"
+                    : "text-white/80 hover:text-white hover:pl-5 active:bg-white/5"
                 }`}
               >
                 {item.label}
               </Link>
             ))}
-            <Link href="/book" onClick={() => setMobileMenuOpen(false)}>
-              <Button className="w-full mt-4 rounded-sm" size="sm">
-                {t("nav.book")}
-              </Button>
-            </Link>
+            <div className="px-6 mt-4">
+              <Link href="/book" onClick={() => setMobileMenuOpen(false)}>
+                <Button className="w-full rounded-sm min-h-[56px] text-base font-semibold active:scale-[0.98]" size="lg">
+                  {t("nav.book")}
+                </Button>
+              </Link>
+            </div>
           </div>
         )}
       </div>

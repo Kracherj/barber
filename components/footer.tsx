@@ -8,9 +8,9 @@ export function Footer() {
   const { language, t } = useLanguage();
 
   return (
-    <footer className="bg-[#0E0E0E] border-t border-white/5 text-white py-16">
+    <footer className="bg-[#0E0E0E] border-t border-white/5 text-white py-12 sm:py-16">
       <div className="container mx-auto px-6 md:px-12 lg:px-16">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12 mb-8 sm:mb-12">
           {/* Brand */}
           <div>
             <h3 className="text-3xl font-heading font-bold mb-6 text-white tracking-tight">
@@ -128,7 +128,7 @@ export function Footer() {
             </p>
             <Link
               href="/book"
-              className="inline-block bg-gold text-[#0E0E0E] px-6 py-3 rounded-sm font-semibold hover:bg-gold/90 transition-colors tracking-wide text-sm"
+              className="inline-block bg-gold text-[#0E0E0E] px-6 py-3 rounded-sm font-semibold hover:bg-gold/90 active:scale-95 transition-all duration-200 tracking-wide text-sm min-h-[44px] flex items-center justify-center"
             >
               {t("nav.book")}
             </Link>

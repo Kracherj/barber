@@ -8,9 +8,9 @@ export function MapSection() {
   const { t } = useLanguage();
 
   return (
-    <section id="location" className="py-32 bg-[#0E0E0E]">
+    <section id="location" className="py-16 sm:py-24 md:py-32 bg-[#0E0E0E]">
       <div className="container mx-auto px-6 md:px-12 lg:px-16">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-16">
           {/* Contact Info */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
@@ -20,10 +20,10 @@ export function MapSection() {
             className="space-y-8"
           >
             <div>
-              <h2 className="text-5xl md:text-6xl lg:text-7xl font-heading font-bold text-white mb-6 tracking-tight">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold text-white mb-4 sm:mb-6 tracking-tight">
                 {t("nav.contact")}
               </h2>
-              <div className="w-24 h-[1px] bg-gold mb-8" />
+              <div className="w-16 sm:w-24 h-[1px] bg-gold mb-6 sm:mb-8" />
             </div>
 
             <div className="flex items-start space-x-6">
@@ -69,7 +69,7 @@ export function MapSection() {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
-            className="h-[500px] rounded-sm overflow-hidden border border-white/5 relative bg-[#1c1c1c]"
+            className="h-[400px] sm:h-[500px] rounded-sm overflow-hidden border border-white/5 relative bg-[#1c1c1c]"
           >
             <iframe
               title="Joseph Coiff Ezzahra - Carte"
@@ -84,7 +84,7 @@ export function MapSection() {
               href="https://maps.app.goo.gl/9rrvfUm1G1WfzBQ46"
               target="_blank"
               rel="noopener noreferrer"
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 bg-gold text-[#0E0E0E] px-6 py-3 rounded-sm font-semibold hover:bg-gold/90 transition-colors shadow-lg text-sm"
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 bg-gold text-[#0E0E0E] px-6 py-3 rounded-sm font-semibold hover:bg-gold/90 active:scale-95 transition-all duration-200 shadow-lg text-sm min-h-[44px]"
             >
               <MapPin className="h-4 w-4" />
               Ouvrir dans Google Maps

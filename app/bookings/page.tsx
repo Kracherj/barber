@@ -80,7 +80,7 @@ export default function BookingsPage() {
     <div className="min-h-screen bg-beige py-12">
       <div className="container mx-auto px-4">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-heading font-bold text-navy text-center mb-8">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-heading font-bold text-navy text-center mb-6 sm:mb-8 tracking-tight">
             {language === "fr" ? "Mes Réservations" : "My Bookings"}
           </h1>
 

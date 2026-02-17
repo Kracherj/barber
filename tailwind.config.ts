@@ -56,8 +56,8 @@ const config: Config = {
         beige: "#1c1c1c",
       },
       fontFamily: {
-        heading: ["Cormorant Garamond", "serif"],
-        body: ["Inter", "sans-serif"],
+        heading: ["var(--font-heading)", "Cormorant Garamond", "serif"],
+        body: ["var(--font-inter)", "Inter", "sans-serif"],
       },
       borderRadius: {
         lg: "0.25rem",

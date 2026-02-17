@@ -41,22 +41,22 @@ export function Gallery() {
   const { t } = useLanguage();
 
   return (
-    <section id="gallery" className="py-32 bg-[#0E0E0E]">
+    <section id="gallery" className="py-16 sm:py-24 md:py-32 bg-[#0E0E0E]">
       <div className="container mx-auto px-6 md:px-12 lg:px-16">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="mb-20"
+          className="mb-12 sm:mb-16 md:mb-20"
         >
-          <h2 className="text-5xl md:text-6xl lg:text-7xl font-heading font-bold text-white mb-6 tracking-tight">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold text-white mb-4 sm:mb-6 tracking-tight">
             {t("gallery.title")}
           </h2>
-          <div className="w-24 h-[1px] bg-gold" />
+          <div className="w-16 sm:w-24 h-[1px] bg-gold" />
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {galleryImages.map((image, index) => (
             <motion.div
               key={image.id}
@@ -71,7 +71,9 @@ export function Gallery() {
                 alt={image.alt}
                 fill
                 className="object-cover transition-transform duration-700 group-hover:scale-110"
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                loading="lazy"
+                quality={85}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <div className="absolute bottom-0 left-0 right-0 p-6 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">

@@ -63,7 +63,7 @@ export default function ServicesPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-20"
         >
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-heading font-bold text-white mb-6 tracking-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold text-white mb-4 sm:mb-6 tracking-tight">
             {language === "fr" ? "Nos Services" : "Our Services"}
           </h1>
           <div className="w-24 h-[1px] bg-gold mb-6" />

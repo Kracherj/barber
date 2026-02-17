@@ -25,20 +25,22 @@ export default function BookPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-beige">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold mx-auto mb-4"></div>
-          <p className="text-navy">Chargement...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold mx-auto mb-4" role="status" aria-label="Loading">
+            <span className="sr-only">Chargement...</span>
+          </div>
+          <p className="text-navy font-body">Chargement...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-beige py-12">
-      <div className="container mx-auto px-4">
+    <div className="min-h-screen bg-beige py-8 sm:py-12">
+      <div className="container mx-auto px-6 sm:px-8 md:px-12">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-heading font-bold text-navy text-center mb-8">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-heading font-bold text-navy text-center mb-6 sm:mb-8 tracking-tight">
             Réserver votre rendez-vous
           </h1>
           <BookingStepper barbers={barbers} services={services} />
