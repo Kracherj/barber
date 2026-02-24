@@ -26,6 +26,11 @@ interface Barber {
   is_active: boolean;
   time_slot_duration_minutes: number;
   barber_services?: Array<{ service_id: string }>;
+  home_service_enabled?: boolean;
+  home_travel_minutes?: number | null;
+  home_buffer_minutes?: number | null;
+  max_home_visits_per_day?: number | null;
+  home_travel_radius_km?: number | null;
 }
 
 export function BarberManagement() {
@@ -41,6 +46,11 @@ export function BarberManagement() {
     photo_url: "",
     time_slot_duration_minutes: 30,
     service_ids: [] as string[],
+    home_service_enabled: false,
+    home_travel_minutes: 30,
+    home_buffer_minutes: 15,
+    max_home_visits_per_day: 5,
+    home_travel_radius_km: null as number | null,
   });
   const { toast } = useToast();
 
@@ -104,6 +114,11 @@ export function BarberManagement() {
         photo_url: barber.photo_url || "",
         time_slot_duration_minutes: barber.time_slot_duration_minutes || 30,
         service_ids: barber.barber_services?.map((bs) => bs.service_id) || [],
+        home_service_enabled: barber.home_service_enabled ?? false,
+        home_travel_minutes: barber.home_travel_minutes ?? 30,
+        home_buffer_minutes: barber.home_buffer_minutes ?? 15,
+        max_home_visits_per_day: barber.max_home_visits_per_day ?? 5,
+        home_travel_radius_km: barber.home_travel_radius_km ?? null,
       });
     } else {
       setEditingBarber(null);
@@ -113,6 +128,11 @@ export function BarberManagement() {
         photo_url: "",
         time_slot_duration_minutes: 30,
         service_ids: [],
+        home_service_enabled: false,
+        home_travel_minutes: 30,
+        home_buffer_minutes: 15,
+        max_home_visits_per_day: 5,
+        home_travel_radius_km: null,
       });
     }
     setIsDialogOpen(true);
@@ -283,6 +303,9 @@ export function BarberManagement() {
                   <p className="text-sm text-white/80">
                     Services: {barber.barber_services?.length || 0}
                   </p>
+                  {barber.home_service_enabled && (
+                    <p className="text-sm text-green-400">Home service • Travel: {barber.home_travel_minutes ?? 30} min</p>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
@@ -321,6 +344,75 @@ export function BarberManagement() {
           ))}
         </div>
       )}
+
+      {/* Home service – Service availability */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-white">Home service – Service availability</CardTitle>
+          <p className="text-sm text-white/70">Which services can be booked at home and the surcharge (TND).</p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {services.map((service) => (
+              <div
+                key={service.id}
+                className="flex flex-wrap items-center gap-4 p-3 rounded-lg bg-white/5"
+              >
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!service.available_for_home}
+                    onChange={async (e) => {
+                      try {
+                        const res = await fetch(`/api/admin/services/${service.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ available_for_home: e.target.checked }),
+                          credentials: "include",
+                        });
+                        if (!res.ok) throw new Error("Failed to update");
+                        loadServices();
+                        toast({ title: "Saved", description: "Service updated." });
+                      } catch (err: any) {
+                        toast({ title: "Error", description: err.message, variant: "destructive" });
+                      }
+                    }}
+                    className="w-4 h-4 rounded"
+                  />
+                  <span className="text-white">{service.name_en}</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <Label className="text-white/80 text-sm">Home surcharge (TND)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    className="w-24"
+                    defaultValue={service.home_surcharge_tnd ?? 0}
+                    onBlur={async (e) => {
+                      const v = parseFloat(e.target.value) || 0;
+                      try {
+                        const res = await fetch(`/api/admin/services/${service.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ home_surcharge_tnd: v }),
+                          credentials: "include",
+                        });
+                        if (res.ok) {
+                          loadServices();
+                          toast({ title: "Saved", description: "Surcharge updated." });
+                        }
+                      } catch (err: any) {
+                        toast({ title: "Error", description: err.message, variant: "destructive" });
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -391,6 +483,60 @@ export function BarberManagement() {
                   })
                 }
               />
+            </div>
+
+            <div className="border-t pt-4">
+              <Label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.home_service_enabled}
+                  onChange={(e) =>
+                    setFormData({ ...formData, home_service_enabled: e.target.checked })
+                  }
+                  className="w-4 h-4 rounded"
+                />
+                Home service enabled
+              </Label>
+              {formData.home_service_enabled && (
+                <div className="grid grid-cols-2 gap-4 mt-3 ml-6">
+                  <div>
+                    <Label>Travel (min)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={180}
+                      value={formData.home_travel_minutes}
+                      onChange={(e) =>
+                        setFormData({ ...formData, home_travel_minutes: parseInt(e.target.value) || 30 })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Buffer (min)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={60}
+                      value={formData.home_buffer_minutes}
+                      onChange={(e) =>
+                        setFormData({ ...formData, home_buffer_minutes: parseInt(e.target.value) || 15 })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Max home visits/day</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={formData.max_home_visits_per_day}
+                      onChange={(e) =>
+                        setFormData({ ...formData, max_home_visits_per_day: parseInt(e.target.value) || 5 })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

@@ -107,6 +107,8 @@ Chez Joseph Coiff, nous ne faisons pas que couper les cheveux—nous préservons
                 alt="Barbershop interior"
                 fill
                 className="object-cover"
+                loading="lazy"
+                sizes="(max-width: 768px) 100vw, 50vw"
               />
             </div>
             <div className="space-y-6">

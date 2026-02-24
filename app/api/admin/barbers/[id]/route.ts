@@ -70,6 +70,11 @@ export async function PATCH(
       time_slot_duration_minutes,
       is_active,
       service_ids,
+      home_service_enabled,
+      home_travel_minutes,
+      home_buffer_minutes,
+      max_home_visits_per_day,
+      home_travel_radius_km,
     } = body;
 
     // Check for future bookings if deactivating
@@ -100,6 +105,11 @@ export async function PATCH(
     if (time_slot_duration_minutes !== undefined)
       updateData.time_slot_duration_minutes = time_slot_duration_minutes;
     if (is_active !== undefined) updateData.is_active = is_active;
+    if (home_service_enabled !== undefined) updateData.home_service_enabled = home_service_enabled;
+    if (home_travel_minutes !== undefined) updateData.home_travel_minutes = home_travel_minutes;
+    if (home_buffer_minutes !== undefined) updateData.home_buffer_minutes = home_buffer_minutes;
+    if (max_home_visits_per_day !== undefined) updateData.max_home_visits_per_day = max_home_visits_per_day;
+    if (home_travel_radius_km !== undefined) updateData.home_travel_radius_km = home_travel_radius_km;
 
     const { data: barber, error: updateError } = await supabase
       .from("barbers")

@@ -37,11 +37,18 @@ function validateUUID(id: string, fieldName: string): void {
   }
 }
 
+export type BookingType = "in_shop" | "home_service";
+
 export interface Barber {
   id: string;
   name: string;
   name_ar: string;
   is_active?: boolean;
+  home_service_enabled?: boolean;
+  home_travel_minutes?: number | null;
+  home_buffer_minutes?: number | null;
+  max_home_visits_per_day?: number | null;
+  home_travel_radius_km?: number | null;
 }
 
 export interface Service {
@@ -52,6 +59,8 @@ export interface Service {
   description_ar: string;
   duration_minutes: number;
   price_tnd: number;
+  available_for_home?: boolean;
+  home_surcharge_tnd?: number;
 }
 
 export interface Booking {
@@ -64,6 +73,13 @@ export interface Booking {
   booking_date: string;
   status: "confirmed" | "cancelled" | "completed";
   created_at: string;
+  booking_type?: BookingType;
+  customer_address_line?: string | null;
+  customer_city_zone?: string | null;
+  customer_location_pin?: string | null;
+  total_price_tnd?: number | null;
+  effective_start_at?: string | null;
+  effective_end_at?: string | null;
   service?: Service;
   barber?: Barber;
 }
@@ -126,27 +142,45 @@ export async function isDateDisabled(date: Date): Promise<boolean> {
   return !!data;
 }
 
-export async function getBarbers(includeInactive: boolean = false): Promise<Barber[]> {
+export async function getBarbers(includeInactive: boolean = false, homeServiceOnly: boolean = false): Promise<Barber[]> {
   const supabase = createClient();
   let query = supabase
     .from("barbers")
     .select("*")
     .order("name");
 
-  // By default, only return active barbers (for client-side use)
-  // Admin can pass includeInactive=true to see all barbers
   if (!includeInactive) {
     query = query.eq("is_active", true);
   }
+  if (homeServiceOnly) {
+    query = query.eq("home_service_enabled", true);
+  }
 
   const { data, error } = await query;
-
   if (error) {
     console.error("Error fetching barbers:", error);
     return [];
   }
-
   return data || [];
+}
+
+export async function getSalonConfig(): Promise<{ home_service_enabled: boolean; home_service_base_fee_tnd: number }> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("salon_config")
+    .select("key, value_bool, value_number")
+    .in("key", ["home_service_enabled", "home_service_base_fee_tnd"]);
+  if (error) {
+    console.error("Error fetching salon config:", error);
+    return { home_service_enabled: true, home_service_base_fee_tnd: 10 };
+  }
+  const rows = data || [];
+  const homeEnabled = rows.find((r: any) => r.key === "home_service_enabled");
+  const baseFee = rows.find((r: any) => r.key === "home_service_base_fee_tnd");
+  return {
+    home_service_enabled: homeEnabled?.value_bool ?? true,
+    home_service_base_fee_tnd: Number(baseFee?.value_number ?? 10),
+  };
 }
 
 export async function getServices(): Promise<Service[]> {
@@ -197,6 +231,12 @@ export async function getBookings(
   return data || [];
 }
 
+function sanitizeAddress(value: string, maxLen: number): string {
+  const s = sanitizeString(value, maxLen);
+  if (!s || s.length < 3) throw new Error("INVALID_ADDRESS: Address must be at least 3 characters");
+  return s;
+}
+
 export async function createBooking(booking: {
   service_id: string;
   barber_id: string;
@@ -204,137 +244,159 @@ export async function createBooking(booking: {
   customer_phone: string;
   customer_email?: string;
   booking_date: string;
+  booking_type?: BookingType;
+  customer_address_line?: string;
+  customer_city_zone?: string;
+  customer_location_pin?: string;
 }): Promise<Booking | null> {
   const supabase = createClient();
+  const bookingType: BookingType = booking.booking_type ?? "in_shop";
 
-  // Validate and sanitize inputs
-  validateUUID(booking.service_id, 'service_id');
-  validateUUID(booking.barber_id, 'barber_id');
+  validateUUID(booking.service_id, "service_id");
+  validateUUID(booking.barber_id, "barber_id");
   const sanitizedName = sanitizeString(booking.customer_name, 100);
   const sanitizedPhone = sanitizePhone(booking.customer_phone);
   const sanitizedEmail = sanitizeEmail(booking.customer_email);
-  
-  // Validate booking_date is a valid ISO string
-  const bookingDate = new Date(booking.booking_date);
-  if (isNaN(bookingDate.getTime())) {
-    throw new Error('INVALID_BOOKING_DATE: Invalid date format');
-  }
-  
-  // Ensure booking_date is in the future
-  if (bookingDate < new Date()) {
-    throw new Error('INVALID_BOOKING_DATE: Cannot book in the past');
-  }
 
-  // Block booking on disabled (closed) dates
+  const bookingDate = new Date(booking.booking_date);
+  if (isNaN(bookingDate.getTime())) throw new Error("INVALID_BOOKING_DATE: Invalid date format");
+  if (bookingDate < new Date()) throw new Error("INVALID_BOOKING_DATE: Cannot book in the past");
+
   const bookingDateStr = bookingDate.toISOString().slice(0, 10);
-  const { data: disabled } = await supabase
-    .from("disabled_dates")
-    .select("id")
-    .eq("date", bookingDateStr)
-    .maybeSingle();
-  if (disabled) {
-    throw new Error("DATE_DISABLED");
-  }
+  const { data: disabled } = await supabase.from("disabled_dates").select("id").eq("date", bookingDateStr).maybeSingle();
+  if (disabled) throw new Error("DATE_DISABLED");
 
   const { data: service, error: serviceError } = await supabase
     .from("services")
-    .select("duration_minutes")
+    .select("duration_minutes, price_tnd, available_for_home, home_surcharge_tnd")
     .eq("id", booking.service_id)
     .single();
-  
-  if (serviceError || !service) {
-    throw new Error("SERVICE_NOT_FOUND");
-  }
-  
+  if (serviceError || !service) throw new Error("SERVICE_NOT_FOUND");
   const durationMinutes = service.duration_minutes;
 
-  const isAvailable = await checkAvailability(
-    booking.barber_id,
-    bookingDate,
-    durationMinutes
-  );
-  if (!isAvailable) {
-    throw new Error("BARBER_UNAVAILABLE");
+  let effectiveStart: Date;
+  let effectiveEnd: Date;
+  let totalPriceTnd: number | null = null;
+  let addressLine: string | null = null;
+  let cityZone: string | null = null;
+  let locationPin: string | null = null;
+
+  if (bookingType === "home_service") {
+    if (!booking.customer_address_line?.trim() || !booking.customer_city_zone?.trim()) {
+      throw new Error("INVALID_ADDRESS: Address and city/zone are required for home service");
+    }
+    addressLine = sanitizeAddress(booking.customer_address_line, 500);
+    cityZone = sanitizeAddress(booking.customer_city_zone, 120);
+    locationPin = booking.customer_location_pin ? sanitizeString(booking.customer_location_pin, 50) : null;
+
+    const { data: barber } = await supabase
+      .from("barbers")
+      .select("home_service_enabled, home_travel_minutes, home_buffer_minutes, max_home_visits_per_day")
+      .eq("id", booking.barber_id)
+      .single();
+    if (!barber?.home_service_enabled) throw new Error("BARBER_HOME_SERVICE_DISABLED");
+    if (service.available_for_home !== true) throw new Error("SERVICE_NOT_AVAILABLE_FOR_HOME");
+
+    const travelMin = barber.home_travel_minutes ?? 30;
+    const bufferMin = barber.home_buffer_minutes ?? 15;
+    effectiveStart = new Date(bookingDate.getTime() - travelMin * 60000);
+    effectiveEnd = new Date(bookingDate.getTime() + durationMinutes * 60000 + bufferMin * 60000);
+
+    const { data: config } = await getSalonConfig();
+    const surcharge = Number(service.home_surcharge_tnd ?? config.home_service_base_fee_tnd);
+    totalPriceTnd = Number(service.price_tnd) + surcharge;
+
+    const maxPerDay = barber.max_home_visits_per_day ?? 10;
+    const dayStart = new Date(bookingDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(bookingDate);
+    dayEnd.setHours(23, 59, 59, 999);
+    const { count } = await supabase
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("barber_id", booking.barber_id)
+      .eq("booking_type", "home_service")
+      .eq("status", "confirmed")
+      .gte("booking_date", dayStart.toISOString())
+      .lte("booking_date", dayEnd.toISOString());
+    if ((count ?? 0) >= maxPerDay) throw new Error("BARBER_MAX_HOME_VISITS_REACHED");
+
+    const available = await checkAvailabilityWindow(booking.barber_id, effectiveStart, effectiveEnd);
+    if (!available) throw new Error("BARBER_UNAVAILABLE");
+  } else {
+    effectiveStart = bookingDate;
+    effectiveEnd = new Date(bookingDate.getTime() + durationMinutes * 60000);
+    const available = await checkAvailabilityWindow(booking.barber_id, effectiveStart, effectiveEnd);
+    if (!available) throw new Error("BARBER_UNAVAILABLE");
   }
 
-  // Prepare sanitized booking data
-  const sanitizedBooking = {
+  const basePayload = {
     service_id: booking.service_id,
     barber_id: booking.barber_id,
     customer_name: sanitizedName,
     customer_phone: sanitizedPhone,
-    customer_email: sanitizedEmail,
+    customer_email: sanitizedEmail ?? null,
     booking_date: bookingDate.toISOString(),
+    booking_type: bookingType,
+    effective_start_at: effectiveStart.toISOString(),
+    effective_end_at: effectiveEnd.toISOString(),
+    total_price_tnd: totalPriceTnd ?? null,
+    customer_address_line: addressLine ?? null,
+    customer_city_zone: cityZone ?? null,
+    customer_location_pin: locationPin ?? null,
   };
 
-  // First, check if there's a cancelled booking at this exact time slot
-  // If so, update it instead of creating a new one (workaround for UNIQUE constraint)
   const { data: existingBooking } = await supabase
     .from("bookings")
     .select("id, status")
     .eq("barber_id", booking.barber_id)
-    .eq("booking_date", sanitizedBooking.booking_date)
+    .eq("booking_date", bookingDate.toISOString())
     .eq("status", "cancelled")
     .maybeSingle();
 
-  if (existingBooking) {
-    // Update the cancelled booking to confirmed with new customer details
+  if (existingBooking && bookingType === "in_shop") {
     const { data, error } = await supabase
       .from("bookings")
       .update({
-        service_id: sanitizedBooking.service_id,
-        customer_name: sanitizedBooking.customer_name,
-        customer_phone: sanitizedBooking.customer_phone,
-        customer_email: sanitizedBooking.customer_email,
+        ...basePayload,
         status: "confirmed",
       })
       .eq("id", existingBooking.id)
       .select("*, service:services(*), barber:barbers(*)")
       .single();
-
-    if (error) {
-      console.error("Error updating cancelled booking:", error);
-      throw new Error(`FAILED_TO_UPDATE_BOOKING: ${error.message}`);
-    }
-
-    if (!data) {
-      throw new Error("FAILED_TO_UPDATE_BOOKING: No data returned");
-    }
-
+    if (error) throw new Error(`FAILED_TO_UPDATE_BOOKING: ${error.message}`);
+    if (!data) throw new Error("FAILED_TO_UPDATE_BOOKING: No data returned");
     return data;
   }
 
-  // No cancelled booking exists, create a new one
+  // Pre-insert overlap check using same window we're inserting (avoids trigger/DB error and timezone mismatch)
+  const { data: overlapping } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("barber_id", booking.barber_id)
+    .eq("status", "confirmed")
+    .lt("effective_start_at", effectiveEnd.toISOString())
+    .gt("effective_end_at", effectiveStart.toISOString())
+    .limit(1);
+  if (overlapping && overlapping.length > 0) throw new Error("DUPLICATE_BOOKING");
+
   const { data, error } = await supabase
     .from("bookings")
-    .insert(sanitizedBooking)
+    .insert({ ...basePayload, status: "confirmed" })
     .select("*, service:services(*), barber:barbers(*)")
     .single();
 
   if (error) {
-    // Check for UNIQUE constraint violation (PostgreSQL error code 23505)
-    const errorCode = (error as any)?.code;
-    const errorMessage = (error as any)?.message || '';
-    
-    // If it's a duplicate booking error, throw a specific error that can be caught
-    if (errorCode === '23505' || errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
-      throw new Error('DUPLICATE_BOOKING');
+    const err = error as { message?: string; code?: string; status?: number };
+    const msg = err?.message || "";
+    const code = err?.code;
+    const status = err?.status;
+    if (code === "23505" || status === 409 || msg.toLowerCase().includes("overlap") || msg.toLowerCase().includes("conflict")) {
+      throw new Error("DUPLICATE_BOOKING");
     }
-    
-    // Log other errors for debugging
-    console.error("Error creating booking:", {
-      code: errorCode,
-      message: errorMessage,
-      fullError: error
-    });
-    
-    throw new Error(`FAILED_TO_CREATE_BOOKING: ${errorMessage || 'Unknown error'}`);
+    throw new Error(`FAILED_TO_CREATE_BOOKING: ${msg || "Unknown error"}`);
   }
-
-  if (!data) {
-    throw new Error("FAILED_TO_CREATE_BOOKING: No data returned");
-  }
-
+  if (!data) throw new Error("FAILED_TO_CREATE_BOOKING: No data returned");
   return data;
 }
 
@@ -512,79 +574,96 @@ export function isBarberAvailableOnDate(
   return !!weekly && weekly.is_available;
 }
 
+/** Check if barber is available for a full window (schedule + blocked + no booking overlap). Used for both in_shop and home_service. */
+export async function checkAvailabilityWindow(
+  barberId: string,
+  windowStart: Date,
+  windowEnd: Date
+): Promise<boolean> {
+  const supabase = createClient();
+  // Use UTC date/time so RPC window matches what we store (timestamptz). Prevents 409 when local TZ differs from DB.
+  const y = windowStart.getUTCFullYear();
+  const m = String(windowStart.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(windowStart.getUTCDate()).padStart(2, "0");
+  const dateStr = `${y}-${m}-${d}`;
+  const startTimeStr = windowStart.toISOString().slice(11, 19);
+  const endTimeStr = windowEnd.toISOString().slice(11, 19);
+
+  const { data: available, error: rpcError } = await supabase.rpc("get_barber_availability", {
+    p_barber_id: barberId,
+    p_date: dateStr,
+    p_start_time: startTimeStr,
+    p_end_time: endTimeStr,
+  });
+
+  if (rpcError) {
+    console.error("Error checking barber availability RPC:", rpcError);
+    return false;
+  }
+  return available === true;
+}
+
 export async function checkAvailability(
   barberId: string,
   date: Date,
   durationMinutes: number
 ): Promise<boolean> {
   const endTime = new Date(date.getTime() + durationMinutes * 60000);
-
-  const supabase = createClient();
-
-  const dateStr = toLocalDateString(date);
-  const startTimeStr = date.toTimeString().slice(0, 8);
-  const endTimeStr = endTime.toTimeString().slice(0, 8);
-
-  const { data: available, error: rpcError } = await supabase.rpc(
-    "get_barber_availability",
-    {
-      p_barber_id: barberId,
-      p_date: dateStr,
-      p_start_time: startTimeStr,
-      p_end_time: endTimeStr,
-    }
-  );
-
-  if (!rpcError && available === false) {
-    return false;
-  }
-
-  if (rpcError) {
-    console.error("Error checking barber availability RPC:", rpcError);
-    return false;
-  }
-
-  const { data: conflicting } = await supabase
-    .from("bookings")
-    .select("id")
-    .eq("barber_id", barberId)
-    .eq("status", "confirmed")
-    .gte("booking_date", date.toISOString())
-    .lt("booking_date", endTime.toISOString());
-
-  return (conflicting || []).length === 0;
+  return checkAvailabilityWindow(barberId, date, endTime);
 }
 
+/** Returns time windows when the barber is busy (for both in_shop and home_service). Used to block slots in the client. */
 export async function getBookingsForDate(
   barberId: string,
   date: Date
 ): Promise<Array<{ start: Date; end: Date }>> {
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
-  
+  // Use calendar day in local time so in-shop and home see the same "day"
+  const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+  // Widen query by 12h each side so we never miss a booking due to timezone (e.g. home at 23:30)
+  const queryStart = new Date(startOfDay.getTime() - 12 * 60 * 60 * 1000);
+  const queryEnd = new Date(endOfDay.getTime() + 12 * 60 * 60 * 1000);
+
   const supabase = createClient();
   const { data, error } = await supabase
     .from("bookings")
-    .select("booking_date, service:services(duration_minutes)")
+    .select("id, booking_date, booking_type, effective_start_at, effective_end_at, service:services(duration_minutes)")
     .eq("barber_id", barberId)
     .eq("status", "confirmed")
-    .gte("booking_date", startOfDay.toISOString())
-    .lte("booking_date", endOfDay.toISOString());
+    .gte("booking_date", queryStart.toISOString())
+    .lte("booking_date", queryEnd.toISOString());
 
   if (error) {
     console.error("Error fetching bookings for date:", error);
     return [];
   }
 
-  // Return array of booking time ranges (start and end)
-  return (data || []).map((booking: any) => {
-    const start = new Date(booking.booking_date);
-    const duration = booking.service?.duration_minutes || 30;
-    const end = new Date(start.getTime() + duration * 60000);
-    return { start, end };
-  });
+  const result: Array<{ start: Date; end: Date }> = [];
+  for (const booking of data || []) {
+    let start: Date;
+    let end: Date;
+    if (booking.effective_start_at != null && booking.effective_end_at != null) {
+      start = new Date(booking.effective_start_at);
+      end = new Date(booking.effective_end_at);
+    } else {
+      const arrival = new Date(booking.booking_date);
+      const duration = (booking.service as { duration_minutes?: number } | null)?.duration_minutes ?? 30;
+      if (booking.booking_type === "home_service") {
+        const travelMin = 30;
+        const bufferMin = 15;
+        start = new Date(arrival.getTime() - travelMin * 60000);
+        end = new Date(arrival.getTime() + duration * 60000 + bufferMin * 60000);
+      } else {
+        start = arrival;
+        end = new Date(arrival.getTime() + duration * 60000);
+      }
+    }
+    // Only include windows that overlap the selected calendar day (so in-shop slots are blocked correctly)
+    if (start < endOfDay && end > startOfDay) {
+      result.push({ start, end });
+    }
+  }
+  return result;
 }
 
 export async function getBlockedSlotsForDate(

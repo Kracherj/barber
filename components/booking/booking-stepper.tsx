@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { createBooking, checkAvailability, getBookingsForDate, getBlockedSlotsForDate, getDisabledDates, getBarberSchedule, isBarberAvailableOnDate, type BarberSchedule } from "@/lib/supabase/queries";
-import type { Barber, Service } from "@/lib/supabase/queries";
+import { createBooking, checkAvailability, checkAvailabilityWindow, getBookingsForDate, getBlockedSlotsForDate, getDisabledDates, getBarberSchedule, isBarberAvailableOnDate, getSalonConfig, type BarberSchedule } from "@/lib/supabase/queries";
+import type { Barber, Service, BookingType } from "@/lib/supabase/queries";
 import { formatCurrency, formatDate, formatTime, toLocalDateString } from "@/lib/utils";
 import { useLanguage } from "@/contexts/language-context";
 import { CheckCircle2, Loader2 } from "lucide-react";
@@ -21,7 +21,7 @@ interface BookingStepperProps {
   services: Service[];
 }
 
-type Step = "service" | "barber" | "datetime" | "details" | "confirm";
+type Step = "location" | "service" | "barber" | "datetime" | "details" | "confirm";
 
 const WORKING_HOURS = {
   start: 9,
@@ -60,7 +60,8 @@ function getServiceDesc(service: Service, lang: string): string {
 }
 
 export function BookingStepper({ barbers, services }: BookingStepperProps) {
-  const [step, setStep] = useState<Step>("service");
+  const [step, setStep] = useState<Step>("location");
+  const [bookingType, setBookingType] = useState<BookingType>("in_shop");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -68,6 +69,10 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
+  const [customerAddressLine, setCustomerAddressLine] = useState("");
+  const [customerCityZone, setCustomerCityZone] = useState("");
+  const [customerLocationPin, setCustomerLocationPin] = useState("");
+  const [homeServiceEnabled, setHomeServiceEnabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState<string | null>(null);
   const [bookedSlots, setBookedSlots] = useState<Array<{ start: Date; end: Date }>>([]);
@@ -76,6 +81,10 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
   const [barberSchedule, setBarberSchedule] = useState<BarberSchedule | null>(null);
   const { toast } = useToast();
   const { language } = useLanguage();
+
+  useEffect(() => {
+    getSalonConfig().then((c) => setHomeServiceEnabled(c.home_service_enabled));
+  }, []);
 
   const isFriday = (date: Date) => date.getDay() === 5;
 
@@ -150,14 +159,22 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     const [hours, minutes] = slotTime.split(":").map(Number);
     const slotStart = new Date(selectedDate);
     slotStart.setHours(hours, minutes, 0, 0);
-    const slotEnd = new Date(slotStart.getTime() + selectedService.duration_minutes * 60000);
 
-    // Check if any booked slot overlaps with this time slot
-    return bookedSlots.some((bookedSlot) => {
-      // Check if the slot overlaps with the booked time range
-      // Overlap occurs if: slotStart < bookedSlot.end && slotEnd > bookedSlot.start
-      return slotStart < bookedSlot.end && slotEnd > bookedSlot.start;
-    });
+    // For home service, barber is busy from (arrival - travel) to (arrival + duration + buffer).
+    // Use that effective window so we don't show 11:30 as free when 11:00–11:30 is already booked.
+    let checkStart: Date;
+    let checkEnd: Date;
+    if (bookingType === "home_service" && selectedBarber) {
+      const travelMin = selectedBarber.home_travel_minutes ?? 30;
+      const bufferMin = selectedBarber.home_buffer_minutes ?? 15;
+      checkStart = new Date(slotStart.getTime() - travelMin * 60000);
+      checkEnd = new Date(slotStart.getTime() + selectedService.duration_minutes * 60000 + bufferMin * 60000);
+    } else {
+      checkEnd = new Date(slotStart.getTime() + selectedService.duration_minutes * 60000);
+      checkStart = slotStart;
+    }
+
+    return bookedSlots.some((bookedSlot) => checkStart < bookedSlot.end && checkEnd > bookedSlot.start);
   };
 
   // Helper function to parse time string (handles "HH:MM:SS" and "HH:MM" formats)
@@ -225,9 +242,18 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
       return []; // Return empty if schedule is invalid
     }
 
+    // For home service: barber must leave (arrival - travel) within working hours.
+    // So earliest arrival = scheduleStart + travel (e.g. 9:00 start + 30 travel → first arrival 9:30).
+    let slotLoopStart = scheduleStartMinutes;
+    if (bookingType === "home_service" && selectedBarber) {
+      const travelMin = selectedBarber.home_travel_minutes ?? 30;
+      slotLoopStart = scheduleStartMinutes + travelMin;
+      if (slotLoopStart >= scheduleEndMinutes) return [];
+    }
+
     // Generate time slots based on schedule (every 30 minutes)
     const availableSlots: string[] = [];
-    for (let slotMinutes = scheduleStartMinutes; slotMinutes < scheduleEndMinutes; slotMinutes += 30) {
+    for (let slotMinutes = slotLoopStart; slotMinutes < scheduleEndMinutes; slotMinutes += 30) {
       const hours = Math.floor(slotMinutes / 60);
       const mins = slotMinutes % 60;
       const slotTime = `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
@@ -338,6 +364,22 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     });
   };
 
+  const filteredBarbers = bookingType === "home_service"
+    ? barbers.filter((b) => b.home_service_enabled === true)
+    : barbers;
+  const filteredServices = bookingType === "home_service"
+    ? services.filter((s) => s.available_for_home === true)
+    : services;
+
+  const handleLocationSelect = (type: BookingType) => {
+    setBookingType(type);
+    setSelectedService(null);
+    setSelectedBarber(null);
+    setSelectedDate(undefined);
+    setSelectedTime("");
+    setStep("service");
+  };
+
   const handleServiceSelect = (service: Service) => {
     setSelectedService(service);
     setStep("barber");
@@ -374,19 +416,22 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
   const handleTimeSelect = async (time: string) => {
     if (!selectedDate || !selectedService || !selectedBarber) return;
 
-    // Double-check availability right before proceeding (race condition protection)
     setCheckingAvailability(time);
     const [hours, minutes] = time.split(":").map(Number);
     const bookingDateTime = new Date(selectedDate);
     bookingDateTime.setHours(hours, minutes, 0, 0);
 
     try {
-      // Final availability check
-      const isAvailable = await checkAvailability(
-        selectedBarber.id,
-        bookingDateTime,
-        selectedService.duration_minutes
-      );
+      let isAvailable: boolean;
+      if (bookingType === "home_service") {
+        const travelMin = selectedBarber.home_travel_minutes ?? 30;
+        const bufferMin = selectedBarber.home_buffer_minutes ?? 15;
+        const windowStart = new Date(bookingDateTime.getTime() - travelMin * 60000);
+        const windowEnd = new Date(bookingDateTime.getTime() + selectedService.duration_minutes * 60000 + bufferMin * 60000);
+        isAvailable = await checkAvailabilityWindow(selectedBarber.id, windowStart, windowEnd);
+      } else {
+        isAvailable = await checkAvailability(selectedBarber.id, bookingDateTime, selectedService.duration_minutes);
+      }
 
       if (!isAvailable) {
         // Refresh booked slots and blocked slots to update the UI
@@ -451,8 +496,24 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
       });
       return;
     }
-
-    // Validate phone number
+    if (bookingType === "home_service") {
+      if (!customerAddressLine.trim() || customerAddressLine.trim().length < 3) {
+        toast({
+          title: language === "fr" ? "Adresse requise" : "Address Required",
+          description: language === "fr" ? "Veuillez entrer une adresse complète (au moins 3 caractères)." : "Please enter a complete address (at least 3 characters).",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!customerCityZone.trim() || customerCityZone.trim().length < 2) {
+        toast({
+          title: language === "fr" ? "Ville / zone requise" : "City / Zone Required",
+          description: language === "fr" ? "Veuillez entrer la ville ou la zone." : "Please enter city or zone.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     if (!validatePhoneNumber(customerPhone)) {
       toast({
         title: language === "fr" ? "Numéro invalide" : "Invalid Phone Number",
@@ -461,7 +522,6 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
       });
       return;
     }
-
     setStep("confirm");
   };
 
@@ -469,7 +529,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     if (!selectedService || !selectedBarber || !selectedDate || !selectedTime) {
       return;
     }
-
+    if (isSubmitting) return;
     setIsSubmitting(true);
 
     const [hours, minutes] = selectedTime.split(":").map(Number);
@@ -477,12 +537,16 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
     bookingDateTime.setHours(hours, minutes, 0, 0);
 
     try {
-      // Re-check availability right before booking to prevent race conditions
-      const isStillAvailable = await checkAvailability(
-        selectedBarber.id,
-        bookingDateTime,
-        selectedService.duration_minutes
-      );
+      let isStillAvailable: boolean;
+      if (bookingType === "home_service") {
+        const travelMin = selectedBarber.home_travel_minutes ?? 30;
+        const bufferMin = selectedBarber.home_buffer_minutes ?? 15;
+        const windowStart = new Date(bookingDateTime.getTime() - travelMin * 60000);
+        const windowEnd = new Date(bookingDateTime.getTime() + selectedService.duration_minutes * 60000 + bufferMin * 60000);
+        isStillAvailable = await checkAvailabilityWindow(selectedBarber.id, windowStart, windowEnd);
+      } else {
+        isStillAvailable = await checkAvailability(selectedBarber.id, bookingDateTime, selectedService.duration_minutes);
+      }
 
       if (!isStillAvailable) {
         // Refresh booked slots and blocked slots to update the UI
@@ -522,6 +586,10 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         customer_phone: cleanedPhone,
         customer_email: customerEmail || undefined,
         booking_date: bookingDateTime.toISOString(),
+        booking_type: bookingType,
+        customer_address_line: bookingType === "home_service" ? customerAddressLine.trim() : undefined,
+        customer_city_zone: bookingType === "home_service" ? customerCityZone.trim() : undefined,
+        customer_location_pin: bookingType === "home_service" && customerLocationPin.trim() ? customerLocationPin.trim() : undefined,
       });
 
       if (booking) {
@@ -542,7 +610,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         });
         
         // Reset form
-        setStep("service");
+        setStep("location");
         setSelectedService(null);
         setSelectedBarber(null);
         setSelectedDate(undefined);
@@ -550,6 +618,9 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         setCustomerName("");
         setCustomerPhone("");
         setCustomerEmail("");
+        setCustomerAddressLine("");
+        setCustomerCityZone("");
+        setCustomerLocationPin("");
       } else {
         toast({
           title: language === "fr" ? "Échec de la réservation" : "Booking Failed",
@@ -558,9 +629,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         });
       }
     } catch (error) {
-      console.error("Error in handleConfirmBooking:", error);
-      
-      // Handle duplicate booking error specifically
+      // Handle duplicate booking error specifically (no console.error for this known case)
       if (error instanceof Error && error.message === "DUPLICATE_BOOKING") {
         if (selectedBarber && selectedDate) {
           try {
@@ -574,13 +643,17 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
           }
         }
         toast({
-          title: language === "fr" ? "Créneau déjà réservé" : "Time Slot Already Booked",
-          description: language === "fr" ? "Ce créneau vient d'être réservé. Les horaires ont été mis à jour. Choisissez un autre créneau." : "This time slot was just booked by someone else. The available times have been updated. Please select another time.",
+          title: language === "fr" ? "Créneau indisponible" : "Slot not available",
+          description: language === "fr" ? "Ce créneau chevauche un autre rendez-vous ou vient d'être réservé. Les horaires ont été mis à jour — choisissez un autre créneau." : "This slot overlaps another appointment or was just booked. Times have been refreshed — please pick another slot.",
           variant: "destructive",
         });
         setSelectedTime("");
         setStep("datetime");
-      } else if (error instanceof Error && error.message === "DATE_DISABLED") {
+        setIsSubmitting(false);
+        return;
+      }
+      console.error("Error in handleConfirmBooking:", error);
+      if (error instanceof Error && error.message === "DATE_DISABLED") {
         toast({
           title: language === "fr" ? "Jour fermé" : "Date unavailable",
           description: language === "fr" ? "Ce jour est fermé. Veuillez choisir une autre date." : "This day is closed for bookings. Please choose another date.",
@@ -606,6 +679,38 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         });
         setStep("service");
         setSelectedService(null);
+      } else if (error instanceof Error && error.message === "SERVICE_NOT_AVAILABLE_FOR_HOME") {
+        toast({
+          title: language === "fr" ? "Service non disponible à domicile" : "Service not available for home",
+          description: language === "fr" ? "Ce service ne peut pas être réservé à domicile. Choisissez un autre service ou « En salon »." : "This service cannot be booked for home. Choose another service or In-shop.",
+          variant: "destructive",
+        });
+        setStep("service");
+        setSelectedService(null);
+      } else if (error instanceof Error && error.message === "BARBER_HOME_SERVICE_DISABLED") {
+        toast({
+          title: language === "fr" ? "Coiffeur indisponible à domicile" : "Barber not available for home",
+          description: language === "fr" ? "Ce coiffeur ne fait pas les déplacements. Choisissez un autre coiffeur ou « En salon »." : "This barber does not offer home service. Choose another barber or In-shop.",
+          variant: "destructive",
+        });
+        setStep("barber");
+        setSelectedBarber(null);
+      } else if (error instanceof Error && error.message === "BARBER_MAX_HOME_VISITS_REACHED") {
+        toast({
+          title: language === "fr" ? "Plus de créneaux à domicile" : "No more home slots",
+          description: language === "fr" ? "Ce coiffeur a atteint le maximum de déplacements pour ce jour. Choisissez une autre date ou un autre coiffeur." : "This barber has reached the maximum home visits for this day. Choose another date or barber.",
+          variant: "destructive",
+        });
+        setSelectedDate(undefined);
+        setSelectedTime("");
+        setStep("datetime");
+      } else if (error instanceof Error && error.message.includes("INVALID_ADDRESS")) {
+        toast({
+          title: language === "fr" ? "Adresse incomplète" : "Incomplete address",
+          description: language === "fr" ? "Veuillez entrer une adresse et une ville/zone valides." : "Please enter a valid address and city/zone.",
+          variant: "destructive",
+        });
+        setStep("details");
       } else if (error instanceof Error && (error.message.startsWith("INVALID_") || error.message.startsWith("FAILED_TO_"))) {
         // Handle validation and system errors
         const errorMessage = error.message;
@@ -646,6 +751,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
 
   const steps = language === "fr"
     ? [
+        { id: "location", label: "Lieu" },
         { id: "service", label: "Service" },
         { id: "barber", label: "Coiffeur" },
         { id: "datetime", label: "Date et heure" },
@@ -653,6 +759,7 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
         { id: "confirm", label: "Confirmer" },
       ]
     : [
+        { id: "location", label: "Location" },
         { id: "service", label: "Service" },
         { id: "barber", label: "Barber" },
         { id: "datetime", label: "Date & Time" },
@@ -701,6 +808,49 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
 
       {/* Step Content */}
       <AnimatePresence mode="wait">
+        {step === "location" && (
+          <motion.div
+            key="location"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>{language === "fr" ? "Où souhaitez-vous être servis ?" : "Where would you like to be served?"}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => handleLocationSelect("in_shop")}
+                    className={`p-6 rounded-lg border-2 text-left transition-all duration-200 active:scale-[0.98] ${
+                      bookingType === "in_shop" ? "border-gold bg-gold/10 shadow-lg" : "border-gray-200 hover:border-gold hover:bg-white/5"
+                    }`}
+                    aria-pressed={bookingType === "in_shop"}
+                  >
+                    <h3 className="font-semibold text-lg mb-2">{language === "fr" ? "En salon" : "In-shop"}</h3>
+                    <p className="text-sm text-gray-600">{language === "fr" ? "Rendez-vous au salon" : "Appointment at the salon"}</p>
+                  </button>
+                  <button
+                    onClick={() => handleLocationSelect("home_service")}
+                    disabled={!homeServiceEnabled}
+                    className={`p-6 rounded-lg border-2 text-left transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
+                      bookingType === "home_service" ? "border-gold bg-gold/10 shadow-lg" : "border-gray-200 hover:border-gold hover:bg-white/5"
+                    }`}
+                    aria-pressed={bookingType === "home_service"}
+                  >
+                    <h3 className="font-semibold text-lg mb-2">{language === "fr" ? "À domicile" : "Home service"}</h3>
+                    <p className="text-sm text-gray-600">{language === "fr" ? "Le coiffeur se déplace chez vous" : "Barber comes to you"}</p>
+                    {!homeServiceEnabled && (
+                      <p className="text-xs text-amber-600 mt-2">{language === "fr" ? "Indisponible pour le moment" : "Currently unavailable"}</p>
+                    )}
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
         {step === "service" && (
           <motion.div
             key="service"
@@ -711,10 +861,16 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
             <Card>
               <CardHeader>
                 <CardTitle>{language === "fr" ? "Choisir un service" : "Select a Service"}</CardTitle>
+                <Button variant="ghost" onClick={() => setStep("location")} className="mt-2">← {language === "fr" ? "Retour" : "Back"}</Button>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {services.map((service) => (
+                  {filteredServices.length === 0 ? (
+                    <div className="col-span-full text-center py-8 text-gray-500">
+                      {language === "fr" ? "Aucun service disponible pour la prestation à domicile. Revenez au lieu et choisissez « En salon »." : "No services available for home service. Go back and choose In-shop."}
+                    </div>
+                  ) : (
+                  filteredServices.map((service) => (
                     <button
                       key={service.id}
                       onClick={() => handleServiceSelect(service)}
@@ -737,10 +893,13 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                         </span>
                         <span className="text-lg font-bold text-gold">
                           {formatCurrency(service.price_tnd)}
+                          {bookingType === "home_service" && service.home_surcharge_tnd != null && service.home_surcharge_tnd > 0 && (
+                            <span className="text-xs text-gray-500 block">+ {formatCurrency(service.home_surcharge_tnd)} {language === "fr" ? "déplacement" : "home"}</span>
+                          )}
                         </span>
                       </div>
                     </button>
-                  ))}
+                  )))}
                 </div>
               </CardContent>
             </Card>
@@ -757,17 +916,16 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
             <Card>
               <CardHeader>
                 <CardTitle>{language === "fr" ? "Choisir votre coiffeur" : "Choose Your Barber"}</CardTitle>
-                <Button
-                  variant="ghost"
-                  onClick={() => setStep("service")}
-                  className="mt-2"
-                >
-                  ← {language === "fr" ? "Retour" : "Back"}
-                </Button>
+                <Button variant="ghost" onClick={() => setStep("service")} className="mt-2">← {language === "fr" ? "Retour" : "Back"}</Button>
               </CardHeader>
               <CardContent>
+                {filteredBarbers.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    {language === "fr" ? "Aucun coiffeur disponible pour le déplacement. Revenez au lieu et choisissez « En salon »." : "No barbers available for home service. Go back and choose In-shop."}
+                  </div>
+                ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {barbers.map((barber) => (
+                  {filteredBarbers.map((barber) => (
                     <button
                       key={barber.id}
                       onClick={() => handleBarberSelect(barber)}
@@ -783,12 +941,11 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                           {barber.name.charAt(0)}
                         </span>
                       </div>
-                      <h3 className="font-semibold text-lg">
-                        {barber.name}
-                      </h3>
+                      <h3 className="font-semibold text-lg">{barber.name}</h3>
                     </button>
                   ))}
                 </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -939,6 +1096,37 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                     placeholder="votre@email.com"
                   />
                 </div>
+                {bookingType === "home_service" && (
+                  <>
+                    <div>
+                      <Label htmlFor="address">{language === "fr" ? "Adresse complète *" : "Full Address *"}</Label>
+                      <Input
+                        id="address"
+                        value={customerAddressLine}
+                        onChange={(e) => setCustomerAddressLine(e.target.value)}
+                        placeholder={language === "fr" ? "Numéro, rue, bâtiment" : "Street, building"}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="city">{language === "fr" ? "Ville / Zone *" : "City / Zone *"}</Label>
+                      <Input
+                        id="city"
+                        value={customerCityZone}
+                        onChange={(e) => setCustomerCityZone(e.target.value)}
+                        placeholder={language === "fr" ? "Ex. Tunis, La Marsa" : "e.g. Tunis, La Marsa"}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="pin">{language === "fr" ? "Repère / Code (optionnel)" : "Landmark / Pin (optional)"}</Label>
+                      <Input
+                        id="pin"
+                        value={customerLocationPin}
+                        onChange={(e) => setCustomerLocationPin(e.target.value)}
+                        placeholder={language === "fr" ? "Ex. près du parc" : "e.g. near the park"}
+                      />
+                    </div>
+                  </>
+                )}
                 <Button
                   onClick={handleDetailsSubmit}
                   className="w-full min-h-[56px] text-base font-semibold active:scale-[0.98]"
@@ -997,10 +1185,24 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                         <span className="font-semibold">{language === "fr" ? "Durée :" : "Duration:"}</span>
                         <span>{selectedService.duration_minutes} {language === "fr" ? "min" : "minutes"}</span>
                       </div>
+                      {bookingType === "home_service" && (
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span>{language === "fr" ? "Service :" : "Service:"}</span>
+                            <span>{formatCurrency(selectedService.price_tnd)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>{language === "fr" ? "Déplacement :" : "Home fee:"}</span>
+                            <span>{formatCurrency(Number(selectedService.home_surcharge_tnd ?? 10))}</span>
+                          </div>
+                        </>
+                      )}
                       <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2">
                         <span>{language === "fr" ? "Total :" : "Total:"}</span>
                         <span className="text-gold">
-                          {formatCurrency(selectedService.price_tnd)}
+                          {bookingType === "home_service"
+                            ? formatCurrency(Number(selectedService.price_tnd) + Number(selectedService.home_surcharge_tnd ?? 10))
+                            : formatCurrency(selectedService.price_tnd)}
                         </span>
                       </div>
                     </div>
@@ -1014,6 +1216,14 @@ export function BookingStepper({ barbers, services }: BookingStepperProps) {
                         <span className="font-semibold">{language === "fr" ? "Téléphone :" : "Phone:"}</span>
                         <span>{customerPhone}</span>
                       </div>
+                      {bookingType === "home_service" && (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="font-semibold">{language === "fr" ? "Adresse :" : "Address:"}</span>
+                            <span className="text-right">{customerAddressLine}, {customerCityZone}{customerLocationPin ? ` (${customerLocationPin})` : ""}</span>
+                          </div>
+                        </>
+                      )}
                       {customerEmail && (
                         <div className="flex justify-between">
                           <span className="font-semibold">{language === "fr" ? "E-mail :" : "Email:"}</span>

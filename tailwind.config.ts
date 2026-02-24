@@ -65,6 +65,15 @@ const config: Config = {
         sm: "0.125rem",
         none: "0",
       },
+      transitionDuration: {
+        fast: "var(--duration-fast)",
+        normal: "var(--duration-normal)",
+        slow: "var(--duration-slow)",
+      },
+      transitionTimingFunction: {
+        "out-expo": "var(--ease-out-expo)",
+        "out": "var(--ease-out)",
+      },
       letterSpacing: {
         tighter: "-0.05em",
         tight: "-0.02em",
@@ -92,7 +101,11 @@ const config: Config = {
       },
       boxShadow: {
         "gold-glow": "0 0 20px rgba(198, 167, 94, 0.3)",
+        "gold-glow-soft": "0 0 24px rgba(198, 167, 94, 0.2)",
         "card-hover": "0 10px 40px rgba(0, 0, 0, 0.5)",
+        "elevation-sm": "var(--shadow-elevation-sm)",
+        "elevation-md": "var(--shadow-elevation-md)",
+        "elevation-lg": "var(--shadow-elevation-lg)",
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",

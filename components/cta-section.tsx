@@ -22,7 +22,7 @@ export function CTASection({ variant = "primary", className = "" }: CTASectionPr
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
             className="max-w-3xl mx-auto text-center"
           >
             <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-heading font-bold text-white mb-4 sm:mb-6 tracking-tight">
@@ -39,7 +39,7 @@ export function CTASection({ variant = "primary", className = "" }: CTASectionPr
               <Link href="/book">
                 <Button
                   size="lg"
-                  className="bg-gold text-[#0E0E0E] hover:bg-gold/90 active:scale-95 min-h-[56px] px-8 sm:px-10 text-base sm:text-lg font-semibold tracking-wide shadow-lg hover:shadow-xl hover:shadow-gold/20 transition-all duration-200"
+                  className="bg-gold text-[#0E0E0E] hover:bg-gold/90 active:scale-[0.98] min-h-[56px] px-8 sm:px-10 text-base sm:text-lg font-semibold tracking-wide shadow-lg hover:shadow-gold-glow-soft transition-all duration-normal ease-out"
                 >
                   <Calendar className="h-5 w-5 mr-2" aria-hidden="true" />
                   {t("nav.book")}
@@ -60,7 +60,7 @@ export function CTASection({ variant = "primary", className = "" }: CTASectionPr
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           className="max-w-2xl mx-auto text-center"
         >
           <p className="text-white/80 mb-6 font-body text-base sm:text-lg">
@@ -72,7 +72,7 @@ export function CTASection({ variant = "primary", className = "" }: CTASectionPr
             <Button
               variant="outline"
               size="lg"
-              className="border-gold text-gold hover:bg-gold hover:text-[#0E0E0E] active:scale-95 min-h-[48px] px-6 sm:px-8 font-semibold transition-all duration-200"
+              className="border-gold text-gold hover:bg-gold hover:text-[#0E0E0E] active:scale-[0.98] min-h-[48px] px-6 sm:px-8 font-semibold transition-all duration-normal ease-out"
             >
               {t("nav.book")}
             </Button>

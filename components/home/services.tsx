@@ -61,7 +61,7 @@ export function Services() {
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           className="mb-12 sm:mb-16 md:mb-20"
         >
           <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold text-white mb-4 sm:mb-6 tracking-tight">
@@ -82,9 +82,9 @@ export function Services() {
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.1, duration: 0.6 }}
+                transition={{ delay: index * 0.08, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
               >
-                <Card className="h-full bg-[#1c1c1c] border border-white/5 hover:border-gold/30 hover:shadow-lg hover:shadow-gold/10 transition-all duration-300 group cursor-pointer rounded-sm">
+                <Card className="h-full bg-[#1c1c1c] border border-white/5 hover:border-gold/30 hover:shadow-elevation-md hover:shadow-gold/10 hover:-translate-y-0.5 transition-all duration-normal ease-out group cursor-pointer rounded-sm">
                   <CardHeader className="pb-4 p-6">
                     <div className="h-12 w-12 sm:h-14 sm:w-14 bg-gold/10 rounded-sm flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-gold/20 transition-colors">
                       <Icon className="h-6 w-6 sm:h-7 sm:w-7 text-gold" aria-hidden="true" />
@@ -110,7 +110,7 @@ export function Services() {
                     <Link href="/book" aria-label={`Book ${language === "fr" ? service.nameFr : service.nameEn}`}>
                       <Button
                         variant="outline"
-                        className="w-full border-white/10 hover:border-gold hover:text-gold hover:bg-gold/5 rounded-sm font-semibold tracking-wide transition-all duration-200 active:scale-[0.98] min-h-[44px]"
+                        className="w-full border-white/10 hover:border-gold hover:text-gold hover:bg-gold/5 rounded-sm font-semibold tracking-wide transition-all duration-normal ease-out active:scale-[0.98] min-h-[44px]"
                       >
                         {language === "fr" ? "Réserver maintenant" : "Book Now"}
                       </Button>

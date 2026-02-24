@@ -13,7 +13,7 @@ export function StickyBookButton() {
       <Link href="/book" aria-label="Book appointment">
         <Button
           size="lg"
-          className="h-14 min-h-[56px] px-6 rounded-sm shadow-lg hover:shadow-xl hover:shadow-gold/30 transition-all bg-gold text-[#0E0E0E] font-semibold tracking-wide active:scale-95"
+          className="h-14 min-h-[56px] px-6 rounded-sm shadow-lg hover:shadow-gold-glow-soft transition-all duration-normal ease-out bg-gold text-[#0E0E0E] font-semibold tracking-wide active:scale-[0.98]"
         >
           <Calendar className="h-5 w-5 mr-2" aria-hidden="true" />
           {t("nav.book")}

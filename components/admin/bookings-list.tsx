@@ -136,11 +136,14 @@ export function BookingsList() {
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Scissors className="h-5 w-5 text-gold" />
                       <h3 className="text-lg font-semibold text-white">
                         {booking.service?.name_en}
                       </h3>
+                      {booking.booking_type === "home_service" && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-amber-500/30 text-amber-200">Home</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-white/80">
                       <Calendar className="h-4 w-4" />
@@ -179,8 +182,15 @@ export function BookingsList() {
                         <span>{booking.customer_email}</span>
                       </div>
                     )}
+                    {booking.booking_type === "home_service" && (booking.customer_address_line || booking.customer_city_zone) && (
+                      <div className="text-sm text-white/70">
+                        📍 {[booking.customer_address_line, booking.customer_city_zone].filter(Boolean).join(", ")}
+                      </div>
+                    )}
                     <div className="text-lg font-semibold text-gold">
-                      {booking.service && formatCurrency(booking.service.price_tnd)}
+                      {booking.total_price_tnd != null
+                        ? formatCurrency(booking.total_price_tnd)
+                        : booking.service && formatCurrency(booking.service.price_tnd)}
                     </div>
                   </div>
 

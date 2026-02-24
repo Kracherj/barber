@@ -17,6 +17,9 @@ interface CalendarBooking {
   customer_name: string;
   customer_phone: string;
   status: string;
+  booking_type?: "in_shop" | "home_service";
+  customer_address_line?: string | null;
+  customer_city_zone?: string | null;
   barber: { id: string; name: string };
   service: { name_en: string; duration_minutes: number; price_tnd: number };
 }
@@ -477,12 +480,20 @@ function DailyView({
                   <div className="flex-1 ml-4 space-y-1">
                     {bookingsAtTime.map((booking) => (
                       <div key={booking.id}>
-                        <p className="text-sm font-semibold text-white">
+                        <p className="text-sm font-semibold text-white flex items-center gap-2">
                           {booking.customer_name}
+                          {booking.booking_type === "home_service" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/30 text-amber-200">Home</span>
+                          )}
                         </p>
                         <p className="text-xs text-white/80">
                           {booking.service.name_en} - {booking.barber.name}
                         </p>
+                        {booking.booking_type === "home_service" && (booking.customer_address_line || booking.customer_city_zone) && (
+                          <p className="text-xs text-white/70 truncate" title={`${booking.customer_address_line || ""}, ${booking.customer_city_zone || ""}`}>
+                            📍 {[booking.customer_address_line, booking.customer_city_zone].filter(Boolean).join(", ")}
+                          </p>
+                        )}
                         <p className="text-xs text-gold">
                           {formatCurrency(booking.service.price_tnd)}
                         </p>
@@ -604,15 +615,17 @@ function WeeklyView({
                       key={booking.id}
                       className="p-2 rounded bg-gold/10 border border-gold/20"
                     >
-                      <p className="text-xs font-semibold text-white">
+                      <p className="text-xs font-semibold text-white flex items-center gap-1">
                         {formatTime(bookingTime)}
+                        {booking.booking_type === "home_service" && (
+                          <span className="text-[10px] px-1 rounded bg-amber-500/30 text-amber-200">Home</span>
+                        )}
                       </p>
-                      <p className="text-xs text-white/80 truncate">
-                        {booking.customer_name}
-                      </p>
-                      <p className="text-xs text-white/60">
-                        {booking.barber.name}
-                      </p>
+                      <p className="text-xs text-white/80 truncate">{booking.customer_name}</p>
+                      <p className="text-xs text-white/60">{booking.barber.name}</p>
+                      {booking.booking_type === "home_service" && booking.customer_city_zone && (
+                        <p className="text-xs text-white/50 truncate">📍 {booking.customer_city_zone}</p>
+                      )}
                     </div>
                   );
                 })

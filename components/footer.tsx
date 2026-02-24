@@ -26,7 +26,7 @@ export function Footer() {
                 href="https://www.facebook.com/profile.php?id=100077356354948"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-white/60 hover:text-gold transition-colors"
+                className="text-white/60 hover:text-gold transition-colors duration-normal ease-out"
                 aria-label="Facebook"
               >
                 <Facebook className="h-6 w-6" />
@@ -128,7 +128,7 @@ export function Footer() {
             </p>
             <Link
               href="/book"
-              className="inline-block bg-gold text-[#0E0E0E] px-6 py-3 rounded-sm font-semibold hover:bg-gold/90 active:scale-95 transition-all duration-200 tracking-wide text-sm min-h-[44px] flex items-center justify-center"
+              className="inline-block bg-gold text-[#0E0E0E] px-6 py-3 rounded-sm font-semibold hover:bg-gold/90 active:scale-[0.98] transition-all duration-normal ease-out tracking-wide text-sm min-h-[44px] flex items-center justify-center"
             >
               {t("nav.book")}
             </Link>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/language-context";
@@ -17,7 +18,7 @@ export function Navigation() {
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
     };
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -44,9 +45,9 @@ export function Navigation() {
 
   return (
     <nav
-      className={`fixed top-0 z-50 w-full transition-all duration-300 ${
+      className={`fixed top-0 z-50 w-full transition-all duration-normal ease-out ${
         scrolled
-          ? "bg-[#0E0E0E]/95 backdrop-blur-md border-b border-white/5"
+          ? "bg-[#0E0E0E]/95 backdrop-blur-sm border-b border-white/5"
           : "bg-transparent"
       }`}
     >
@@ -55,12 +56,14 @@ export function Navigation() {
           <Link href="/" className="flex items-center space-x-3 group" aria-label="Joseph Coiff Home">
             <div className="relative h-10 w-10 flex items-center justify-center shrink-0">
               <Scissors className="h-6 w-6 text-gold transition-transform group-hover:rotate-12" aria-hidden="true" />
-              <img
+              <Image
                 src="/images/logo.png"
                 alt="Joseph Coiff Logo"
-                className="absolute inset-0 h-10 w-10 object-contain opacity-0 transition-opacity"
-                onError={(e) => { e.currentTarget.style.display = "none"; }}
-                onLoad={(e) => { (e.target as HTMLImageElement).style.opacity = "1"; }}
+                width={40}
+                height={40}
+                className="object-contain"
+                sizes="40px"
+                unoptimized={false}
               />
             </div>
             <span className="text-xl font-heading font-bold text-white tracking-tight">
@@ -77,7 +80,7 @@ export function Navigation() {
                 className="relative group"
               >
                 <span
-                  className={`text-sm font-medium transition-colors tracking-wide ${
+                  className={`text-sm font-medium transition-colors duration-normal ease-out tracking-wide ${
                     pathname === item.href
                       ? "text-gold"
                       : "text-white/80 hover:text-white"
@@ -88,20 +91,20 @@ export function Navigation() {
                 {pathname === item.href && (
                   <span className="absolute -bottom-1 left-0 w-full h-[1px] bg-gold" />
                 )}
-                <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-gold transition-all group-hover:w-full" />
+                <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-gold transition-[width] duration-normal ease-out group-hover:w-full" />
               </Link>
             ))}
             <Link href="/book">
               <Button
                 size="sm"
-                className="bg-gold text-[#0E0E0E] hover:bg-gold/90 rounded-sm px-6 font-semibold tracking-wide"
+                className="bg-gold text-[#0E0E0E] hover:bg-gold/90 hover:shadow-gold-glow-soft rounded-sm px-6 font-semibold tracking-wide"
               >
                 {t("nav.book")}
               </Button>
             </Link>
             <button
               onClick={() => setLanguage(language === "en" ? "fr" : "en")}
-              className="flex items-center justify-center space-x-1 px-4 py-2 min-h-[44px] min-w-[44px] text-sm font-medium text-white/80 hover:text-gold active:scale-95 transition-all duration-200 rounded-sm"
+              className="flex items-center justify-center space-x-1 px-4 py-2 min-h-[44px] min-w-[44px] text-sm font-medium text-white/80 hover:text-gold active:scale-[0.98] transition-all duration-normal ease-out rounded-sm"
               aria-label={language === "en" ? "Switch to French" : "Switch to English"}
             >
               <Globe className="h-4 w-4" aria-hidden="true" />
@@ -113,14 +116,14 @@ export function Navigation() {
           <div className="flex md:hidden items-center space-x-2">
             <button
               onClick={() => setLanguage(language === "en" ? "fr" : "en")}
-              className="flex items-center justify-center min-h-[44px] min-w-[44px] p-2 active:scale-95 transition-all duration-200 rounded-sm"
+              className="flex items-center justify-center min-h-[44px] min-w-[44px] p-2 active:scale-[0.98] transition-all duration-normal ease-out rounded-sm"
               aria-label={language === "en" ? "Switch to French" : "Switch to English"}
             >
               <Globe className="h-5 w-5 text-white" aria-hidden="true" />
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="flex items-center justify-center min-h-[44px] min-w-[44px] p-2 active:scale-95 transition-all duration-200 rounded-sm"
+              className="flex items-center justify-center min-h-[44px] min-w-[44px] p-2 active:scale-[0.98] transition-all duration-normal ease-out rounded-sm"
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileMenuOpen}
             >

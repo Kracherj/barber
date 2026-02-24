@@ -46,7 +46,7 @@ export function Testimonials() {
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           className="mb-12 sm:mb-16 md:mb-20"
         >
           <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold text-white mb-4 sm:mb-6 tracking-tight">
@@ -62,9 +62,9 @@ export function Testimonials() {
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: index * 0.1, duration: 0.6 }}
+              transition={{ delay: index * 0.08, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
             >
-              <Card className="h-full bg-[#0E0E0E] border border-white/5 hover:border-gold/30 transition-all duration-500 rounded-sm">
+              <Card className="h-full bg-[#0E0E0E] border border-white/5 hover:border-gold/30 hover:shadow-elevation-md hover:-translate-y-0.5 transition-all duration-normal ease-out rounded-sm">
                 <CardContent className="p-6 sm:p-8">
                   <div className="flex mb-4 sm:mb-6">
                     {[...Array(testimonial.rating)].map((_, i) => (

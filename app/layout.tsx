@@ -7,8 +7,8 @@ import { LanguageProvider } from "@/contexts/language-context";
 import { Analytics } from "@/components/analytics";
 import Script from "next/script";
 
-const inter = Inter({ 
-  subsets: ["latin"], 
+const inter = Inter({
+  subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
   preload: true,
@@ -16,7 +16,7 @@ const inter = Inter({
 
 const cormorantGaramond = Cormorant_Garamond({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "600", "700"],
   variable: "--font-heading",
   display: "swap",
   preload: true,
@@ -80,6 +80,15 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
+        {/* Preload hero image for faster FCP/LCP */}
+        <link
+          rel="preload"
+          href="/images/background.png"
+          as="image"
+        />
+        {/* Preconnect to external image origin for gallery/about */}
+        <link rel="preconnect" href="https://images.unsplash.com" />
+        <link rel="dns-prefetch" href="https://images.unsplash.com" />
         {/* Google Analytics */}
         {process.env.NEXT_PUBLIC_GA_ID && (
           <>

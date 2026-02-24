@@ -29,6 +29,16 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.25rem;
+    /* Motion system — premium 2026 */
+    --duration-fast: 150ms;
+    --duration-normal: 220ms;
+    --duration-slow: 400ms;
+    --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+    --shadow-elevation-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+    --shadow-elevation-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-elevation-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
+    --shadow-gold-glow: 0 0 20px rgba(198, 167, 94, 0.25);
   }
 }
 
@@ -58,7 +68,7 @@
   }
 }
 
-/* Subtle texture/grain effect */
+/* Subtle texture/grain — reduced cost (fewer octaves, contain for paint) */
 body::before {
   content: '';
   position: fixed;
@@ -69,7 +79,8 @@ body::before {
   opacity: 0.03;
   z-index: 1;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  contain: strict;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* RTL Support */
@@ -108,7 +119,7 @@ html {
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(24px);
   }
   to {
     opacity: 1;
@@ -117,5 +128,42 @@ html {
 }
 
 .section-reveal {
-  animation: fadeUp 0.8s ease-out forwards;
+  animation: fadeUp 0.7s var(--ease-out-expo) forwards;
+}
+
+/* Signature brand element: thin gold divider (use before headings / section breaks) */
+.signature-line {
+  width: 4rem;
+  height: 1px;
+  background-color: #C6A75E;
+}
+@media (min-width: 640px) {
+  .signature-line {
+    width: 6rem;
+  }
+}
+
+/* Mobile: lighter animations for 60fps */
+@media (max-width: 768px) {
+  :root {
+    --duration-fast: 120ms;
+    --duration-normal: 180ms;
+    --duration-slow: 280ms;
+  }
+}
+
+/* Reduced motion: respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -16,7 +16,7 @@ export function MapSection() {
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-8"
           >
             <div>
@@ -68,7 +68,7 @@ export function MapSection() {
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
             className="h-[400px] sm:h-[500px] rounded-sm overflow-hidden border border-white/5 relative bg-[#1c1c1c]"
           >
             <iframe
@@ -84,7 +84,7 @@ export function MapSection() {
               href="https://maps.app.goo.gl/9rrvfUm1G1WfzBQ46"
               target="_blank"
               rel="noopener noreferrer"
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 bg-gold text-[#0E0E0E] px-6 py-3 rounded-sm font-semibold hover:bg-gold/90 active:scale-95 transition-all duration-200 shadow-lg text-sm min-h-[44px]"
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 bg-gold text-[#0E0E0E] px-6 py-3 rounded-sm font-semibold hover:bg-gold/90 active:scale-[0.98] transition-all duration-normal ease-out shadow-lg text-sm min-h-[44px]"
             >
               <MapPin className="h-4 w-4" />
               Ouvrir dans Google Maps
