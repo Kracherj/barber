@@ -302,7 +302,7 @@ export async function createBooking(booking: {
     effectiveStart = new Date(bookingDate.getTime() - travelMin * 60000);
     effectiveEnd = new Date(bookingDate.getTime() + durationMinutes * 60000 + bufferMin * 60000);
 
-    const { data: config } = await getSalonConfig();
+    const config = await getSalonConfig();
     const surcharge = Number(service.home_surcharge_tnd ?? config.home_service_base_fee_tnd);
     totalPriceTnd = Number(service.price_tnd) + surcharge;
 
