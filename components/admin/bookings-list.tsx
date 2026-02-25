@@ -41,7 +41,7 @@ export function BookingsList() {
         ? new Date(searchDate)
         : new Date(new Date().setHours(0, 0, 0, 0));
       const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 7); // Next 7 days
+      endDate.setDate(endDate.getDate() + 90); // Next 90 days (match barber delete check so no "ghost" bookings)
 
       const data = await getBookings(undefined, startDate, endDate);
       setBookings(data);
@@ -116,6 +116,9 @@ export function BookingsList() {
               </Button>
             </div>
           </div>
+          <p className="text-sm text-white/60 mt-2">
+            Shows 90 days from start date. Leave empty for today. (All future bookings in this range can be cancelled before deleting a barber.)
+          </p>
         </CardContent>
       </Card>
 
