@@ -78,10 +78,10 @@ export async function POST(request: NextRequest) {
       }
 
       // Check barber availability using the same RPC function as booking system
-      // This checks: schedule, breaks, blocked slots, and existing bookings
+      // Use UTC date + time so RPC window matches stored timestamptz (avoids timezone shift)
       const dateStr = bookingDate.toISOString().slice(0, 10);
-      const startTimeStr = bookingDate.toTimeString().slice(0, 8);
-      const endTimeStr = bookingEnd.toTimeString().slice(0, 8);
+      const startTimeStr = bookingDate.toISOString().slice(11, 19);
+      const endTimeStr = bookingEnd.toISOString().slice(11, 19);
 
       const { data: available, error: availabilityError } = await supabase.rpc(
         "get_barber_availability",
@@ -109,19 +109,22 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Double-check for existing bookings (RPC might have race condition)
-      const { data: existingBooking } = await supabase
+      // Overlap check: another confirmed booking for new barber with overlapping effective window
+      const effectiveStart = booking.effective_start_at ?? booking.booking_date;
+      const effectiveEnd = booking.effective_end_at ?? bookingEnd.toISOString();
+      const { data: overlapping } = await supabase
         .from("bookings")
         .select("id")
         .eq("barber_id", new_barber_id)
         .eq("status", "confirmed")
-        .eq("booking_date", booking.booking_date)
-        .maybeSingle();
+        .lt("effective_start_at", effectiveEnd)
+        .gt("effective_end_at", effectiveStart)
+        .limit(1);
 
-      if (existingBooking) {
+      if (overlapping && overlapping.length > 0) {
         failures.push({
           booking_id: booking.id,
-          reason: "Time slot already booked",
+          reason: "Time slot already booked (overlapping window)",
         });
         continue;
       }
