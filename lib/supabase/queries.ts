@@ -575,19 +575,24 @@ export function isBarberAvailableOnDate(
 }
 
 /** Check if barber is available for a full window (schedule + blocked + no booking overlap). Used for both in_shop and home_service. */
+function toLocalTimeString(date: Date): string {
+  const h = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  const s = String(date.getSeconds()).padStart(2, "0");
+  return `${h}:${min}:${s}`;
+}
+
 export async function checkAvailabilityWindow(
   barberId: string,
   windowStart: Date,
   windowEnd: Date
 ): Promise<boolean> {
   const supabase = createClient();
-  // Use UTC date/time so RPC window matches what we store (timestamptz). Prevents 409 when local TZ differs from DB.
-  const y = windowStart.getUTCFullYear();
-  const m = String(windowStart.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(windowStart.getUTCDate()).padStart(2, "0");
-  const dateStr = `${y}-${m}-${d}`;
-  const startTimeStr = windowStart.toISOString().slice(11, 19);
-  const endTimeStr = windowEnd.toISOString().slice(11, 19);
+  // Use local date/time so RPC schedule comparison (09:00-21:00) matches user's selected slot (e.g. 9:30).
+  // Sending UTC caused 9:30 Tunis to become 08:30 and fail "before opening" in the RPC.
+  const dateStr = toLocalDateString(windowStart);
+  const startTimeStr = toLocalTimeString(windowStart);
+  const endTimeStr = toLocalTimeString(windowEnd);
 
   const { data: available, error: rpcError } = await supabase.rpc("get_barber_availability", {
     p_barber_id: barberId,

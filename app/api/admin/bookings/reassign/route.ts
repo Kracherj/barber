@@ -77,11 +77,11 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Check barber availability using the same RPC function as booking system
-      // Use UTC date + time so RPC window matches stored timestamptz (avoids timezone shift)
-      const dateStr = bookingDate.toISOString().slice(0, 10);
-      const startTimeStr = bookingDate.toISOString().slice(11, 19);
-      const endTimeStr = bookingEnd.toISOString().slice(11, 19);
+      // Check barber availability: RPC expects salon local (Africa/Tunis) date + time
+      const tunisOpt = { timeZone: "Africa/Tunis" as const };
+      const dateStr = bookingDate.toLocaleDateString("en-CA", tunisOpt);
+      const startTimeStr = bookingDate.toLocaleTimeString("en-GB", { ...tunisOpt, hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const endTimeStr = bookingEnd.toLocaleTimeString("en-GB", { ...tunisOpt, hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
       const { data: available, error: availabilityError } = await supabase.rpc(
         "get_barber_availability",

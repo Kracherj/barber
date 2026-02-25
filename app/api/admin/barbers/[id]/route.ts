@@ -32,6 +32,9 @@ export async function GET(
       .single();
 
     if (error) {
+      if (error.code === "PGRST116") {
+        return NextResponse.json({ error: "Barber not found" }, { status: 404 });
+      }
       throw error;
     }
 
@@ -39,7 +42,7 @@ export async function GET(
   } catch (error: any) {
     console.error("Error fetching barber:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch barber" },
+      { error: error?.message || "Failed to fetch barber" },
       { status: 500 }
     );
   }
@@ -191,7 +194,11 @@ export async function DELETE(
       );
     }
 
-    // Delete barber (cascade will handle related records)
+    // Remove reassignment audit rows that reference this barber (FK would block delete)
+    await supabase.from("booking_reassignments").delete().eq("old_barber_id", id);
+    await supabase.from("booking_reassignments").delete().eq("new_barber_id", id);
+
+    // Delete barber (cascade handles barber_services, barber_weekly_schedule, etc.)
     const { error: deleteError } = await supabase
       .from("barbers")
       .delete()

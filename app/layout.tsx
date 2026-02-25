@@ -80,12 +80,6 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
-        {/* Preload hero image for faster FCP/LCP */}
-        <link
-          rel="preload"
-          href="/images/background.png"
-          as="image"
-        />
         {/* Preconnect to external image origin for gallery/about */}
         <link rel="preconnect" href="https://images.unsplash.com" />
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
